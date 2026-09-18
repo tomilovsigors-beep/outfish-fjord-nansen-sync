@@ -126,12 +126,14 @@ class FjordNansenClient:
         path = urlparse(url).path.lower()
         if self._is_service_url(url):
             return False
+        # IdoSell SEO convention on this shop: categories use eng_m_, products use eng_pm_.
+        if "eng_pm_" in path or "_pm_" in path:
+            return True
+        if "eng_m_" in path or "_m_" in path:
+            return False
         if any(k in path for k in ["projector.php", "product.php", "/product/", "/products/"]):
             return True
         if any(k in url for k in ["-p-", "product_id=", "id_product=", "projector"]):
-            return True
-        # IdoSell often uses SEO paths without "product" in the filename.
-        if path not in {"", "/"} and path.endswith((".html", ".htm")):
             return True
         if label and any(k in label for k in ["€", "size", "colour", "color"]) and "search.php" not in url:
             return True
@@ -243,6 +245,25 @@ class FjordNansenClient:
                 r.raise_for_status()
                 links = self._collect_links(r.text, r.url)
                 product_links = [x for x in links if self._looks_like_product(x)]
+
+                # Product cards often wrap the product image in the canonical product link.
+                soup = BeautifulSoup(r.text, "html.parser")
+                for img in soup.find_all("img", src=True):
+                    a = img.find_parent("a", href=True)
+                    if not a:
+                        continue
+                    href = urljoin(r.url, a["href"]).split("#")[0]
+                    item = {"label": (img.get("alt") or " ".join(a.stripped_strings)).strip()[:160], "url": href}
+                    if self._same_host(href) and self._looks_like_product(item):
+                        product_links.append(item)
+
+                dedup = []
+                seen_page = set()
+                for item in product_links:
+                    if item["url"] not in seen_page:
+                        seen_page.add(item["url"])
+                        dedup.append(item)
+                product_links = dedup
                 for item in product_links:
                     if item["url"] not in seen_products:
                         seen_products.add(item["url"])
