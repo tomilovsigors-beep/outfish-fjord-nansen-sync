@@ -2,6 +2,8 @@ import json
 import sys
 
 from config import settings
+from importer import collect_catalog
+from sheet_writer import upsert_fn_raw
 from supplier_client import FjordNansenClient
 
 
@@ -13,13 +15,19 @@ def main() -> int:
     cfg = settings()
 
     print("Outfish Fjord Nansen standalone sync", flush=True)
-    print(f"DRY_RUN={cfg['dry_run']}", flush=True)
-    print(f"SHOPIFY_WRITE_ENABLED={cfg['shopify_write_enabled']}", flush=True)
+    emit("MODE", {
+        "dry_run": cfg["dry_run"],
+        "sheet_write_enabled": cfg["sheet_write_enabled"],
+        "google_credentials_ready": cfg["google_credentials_ready"],
+        "shopify_write_enabled": cfg["shopify_write_enabled"],
+    })
 
-    if cfg["shopify_write_enabled"] and cfg["dry_run"]:
-        raise RuntimeError(
-            "Safety lock: SHOPIFY_WRITE_ENABLED=true is incompatible with DRY_RUN=true"
-        )
+    if cfg["shopify_write_enabled"]:
+        raise RuntimeError("Safety lock: Shopify write stage is not approved yet")
+
+    if not cfg["b2b_credentials_ready"]:
+        print("B2B credentials not configured; safe no-op.", flush=True)
+        return 0
 
     client = FjordNansenClient(
         base_url=cfg["base_url"],
@@ -27,25 +35,27 @@ def main() -> int:
         password=cfg["password"],
     )
 
-    public_check = client.inspect_public_signin()
-    emit("PUBLIC_SIGNIN", public_check)
+    result = collect_catalog(client)
+    rows = result["rows"]
 
-    if not cfg["b2b_credentials_ready"]:
-        print("FJORD_B2B_LOGIN / FJORD_B2B_PASSWORD not configured; safe no-op.", flush=True)
-        return 0
-
-    audit = client.authenticated_audit()
-
-    emit("AUTH_SUMMARY", {
-        "authenticated": audit.get("authenticated"),
-        "final_url": audit.get("final_url"),
-        "page_title": audit.get("page_title"),
+    emit("CATALOG_SUMMARY", {
+        "products_discovered": result["product_count"],
+        "rows_parsed": len(rows),
+        "categories": result["category_count"],
+        "errors": len(result["errors"]),
+        "sample": rows[:2],
     })
-    emit("CATEGORY_LINKS", audit.get("category_links", [])[:40])
-    emit("DISCOVERY_PAGES", audit.get("discovery_pages", [])[:15])
-    emit("PRODUCT_CANDIDATES", audit.get("product_candidates", [])[:20])
-    emit("PRODUCT_BLOCK_SAMPLES", audit.get("product_block_samples", [])[:5])
-    emit("SAMPLE_PRODUCT_PAGES", audit.get("sample_product_pages", [])[:3])
+
+    if result["errors"]:
+        emit("CATALOG_ERRORS", result["errors"][:20])
+
+    if cfg["sheet_write_enabled"]:
+        if not cfg["google_credentials_ready"]:
+            raise RuntimeError("SHEET_WRITE_ENABLED=true but GOOGLE_SERVICE_ACCOUNT_JSON is not configured")
+        write_result = upsert_fn_raw(cfg["sheet_id"], cfg["google_service_account_json"], rows)
+        emit("FN_RAW_WRITE", write_result)
+    else:
+        print("FN_RAW write disabled; catalogue parsed only.", flush=True)
 
     return 0
 
