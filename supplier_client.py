@@ -165,6 +165,53 @@ class FjordNansenClient:
                     anchors.append({"label": label[:160], "url": href})
         return anchors[:120]
 
+
+    def _inspect_product_blocks(self, html: str, page_url: str) -> list[dict]:
+        soup = BeautifulSoup(html, "html.parser")
+        samples = []
+        for img in soup.find_all("img", src=True):
+            src = urljoin(page_url, img["src"])
+            if "/hpeciai/" not in src:
+                continue
+
+            chain = []
+            node = img
+            for _ in range(6):
+                node = node.parent
+                if not node or not getattr(node, "name", None):
+                    break
+                attrs = {}
+                for k, v in (node.attrs or {}).items():
+                    if k in {"class", "id", "href", "action", "onclick"} or str(k).startswith("data-"):
+                        attrs[k] = v
+                links = []
+                for a in node.find_all("a", href=True, limit=5):
+                    links.append(urljoin(page_url, a["href"]).split("#")[0])
+                inputs = []
+                for inp in node.find_all("input", limit=10):
+                    if inp.get("name"):
+                        inputs.append({
+                            "name": inp.get("name"),
+                            "type": inp.get("type"),
+                            "value": inp.get("value"),
+                        })
+                chain.append({
+                    "tag": node.name,
+                    "attrs": attrs,
+                    "links": links,
+                    "inputs": inputs,
+                    "text": " ".join(node.stripped_strings)[:400],
+                })
+
+            samples.append({
+                "image": src,
+                "alt": (img.get("alt") or "")[:160],
+                "ancestors": chain,
+            })
+            if len(samples) >= 5:
+                break
+        return samples
+
     def _inspect_page_fields(self, html: str, page_url: str) -> dict:
         soup = BeautifulSoup(html, "html.parser")
         title = soup.title.get_text(" ", strip=True)[:200] if soup.title else ""
@@ -238,6 +285,7 @@ class FjordNansenClient:
 
         product_candidates = []
         seen_products = set()
+        product_block_samples = []
 
         for url in seed_urls[:15]:
             try:
@@ -248,6 +296,9 @@ class FjordNansenClient:
 
                 # Product cards often wrap the product image in the canonical product link.
                 soup = BeautifulSoup(r.text, "html.parser")
+                if not product_block_samples:
+                    product_block_samples = self._inspect_product_blocks(r.text, r.url)
+
                 for img in soup.find_all("img", src=True):
                     a = img.find_parent("a", href=True)
                     if not a:
@@ -296,6 +347,7 @@ class FjordNansenClient:
             "category_links": categories,
             "discovery_pages": discovery_pages[:15],
             "product_candidates": product_candidates[:30],
+            "product_block_samples": product_block_samples[:5],
             "sample_product_pages": sample_pages,
             "total_home_links_seen": len(home_links),
         })
