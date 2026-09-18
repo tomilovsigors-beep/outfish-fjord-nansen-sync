@@ -1,4 +1,5 @@
 from urllib.parse import urljoin, urlparse
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -64,9 +65,23 @@ class FjordNansenClient:
             "login_forms_found": 1 if form else 0,
         }
 
+    def _get_with_startup_retries(self, url: str, attempts: int = 3):
+        last_error = None
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self.session.get(url, timeout=(10, 20), allow_redirects=True)
+                response.raise_for_status()
+                return response
+            except (requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectionError) as exc:
+                last_error = exc
+                if attempt < attempts:
+                    time.sleep(2 * attempt)
+        raise RuntimeError(f"B2B_UNAVAILABLE: {type(last_error).__name__}")
+
     def _authenticate(self):
-        first = self.session.get(self.signin_url(), timeout=30)
-        first.raise_for_status()
+        first = self._get_with_startup_retries(self.signin_url())
         index, form = self._find_login_form(first.text, first.url)
         if form is None:
             return None, {"authenticated": False, "reason": "login_form_not_found"}
@@ -76,9 +91,9 @@ class FjordNansenClient:
         method = (form.get("method") or "GET").upper()
 
         if method == "POST":
-            response = self.session.post(action, data=payload, timeout=30, allow_redirects=True, headers={"Referer": first.url})
+            response = self.session.post(action, data=payload, timeout=(10, 20), allow_redirects=True, headers={"Referer": first.url})
         else:
-            response = self.session.get(action, params=payload, timeout=30, allow_redirects=True, headers={"Referer": first.url})
+            response = self.session.get(action, params=payload, timeout=(10, 20), allow_redirects=True, headers={"Referer": first.url})
 
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
