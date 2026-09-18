@@ -17,33 +17,61 @@ class FjordNansenClient:
     def signin_url(self) -> str:
         return urljoin(self.base_url, "signin.php")
 
+    def _sanitized_login_forms(self, html: str, page_url: str) -> list[dict]:
+        soup = BeautifulSoup(html, "html.parser")
+        forms = []
+        for index, form in enumerate(soup.find_all("form")):
+            inputs = []
+            has_password = False
+            for tag in form.find_all(["input", "select", "textarea"]):
+                field_type = (tag.get("type") or tag.name or "").lower()
+                name = tag.get("name")
+                if field_type == "password":
+                    has_password = True
+                inputs.append({
+                    "tag": tag.name,
+                    "type": field_type,
+                    "name": name,
+                    "has_value": bool(tag.get("value")),
+                })
+
+            if has_password:
+                action = form.get("action") or page_url
+                forms.append({
+                    "index": index,
+                    "method": (form.get("method") or "GET").upper(),
+                    "action": urljoin(page_url, action),
+                    "fields": inputs,
+                })
+        return forms
+
     def inspect_public_signin(self) -> dict:
         response = self.session.get(self.signin_url(), timeout=30)
         response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        forms = soup.find_all("form")
-        password_inputs = soup.find_all("input", {"type": "password"})
+        login_forms = self._sanitized_login_forms(response.text, response.url)
 
         return {
             "url": response.url,
             "status_code": response.status_code,
-            "forms_found": len(forms),
-            "password_fields_found": len(password_inputs),
             "reachable": True,
+            "login_forms": login_forms,
+            "login_forms_found": len(login_forms),
         }
 
     def authenticated_audit(self) -> dict:
-        # Login implementation is deliberately deferred until credentials are
-        # present and the real form/action/field names can be inspected safely.
-        # This prevents guessing the supplier authentication flow.
         if not self.login or not self.password:
             return {
                 "authenticated": False,
                 "reason": "credentials_not_configured",
             }
 
+        # Credentials are intentionally not submitted until the exact supplier
+        # login form mapping has been observed from a real Render run.
+        public = self.inspect_public_signin()
         return {
             "authenticated": False,
-            "reason": "credentials_present_login_mapping_pending",
+            "reason": "credentials_present_form_mapping_captured",
+            "login_forms_found": public["login_forms_found"],
+            "next_step": "map exact login field names and implement authenticated POST",
         }
