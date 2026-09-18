@@ -258,7 +258,7 @@ def discover_product_urls(client, max_categories=200, max_pages_per_category=25)
     return list(products.values()), category_urls
 
 
-def _get_with_retries(client, url, attempts=5):
+def _get_with_retries(client, url, attempts=2):
     last_status = None
     for attempt in range(1, attempts + 1):
         r = client.session.get(url, timeout=30, allow_redirects=True)
@@ -272,7 +272,7 @@ def _get_with_retries(client, url, attempts=5):
                 client._authenticate()
             except Exception:
                 pass
-            time.sleep(min(8.0, 1.2 * attempt))
+            time.sleep(min(3.0, 0.8 * attempt))
             continue
 
         r.raise_for_status()
@@ -285,13 +285,34 @@ def collect_catalog(client, limit=None):
         urls = urls[:limit]
     rows = []
     errors = []
+    consecutive_errors = 0
+    stopped_early = False
+
     for idx, url in enumerate(urls, start=1):
         try:
             r = _get_with_retries(client, url)
             rows.append(parse_product(r.text, r.url))
+            consecutive_errors = 0
         except Exception as exc:
+            consecutive_errors += 1
             errors.append({"url":url,"error":type(exc).__name__,"message":str(exc)[:180]})
+            if consecutive_errors >= 5:
+                print(
+                    f"CIRCUIT_BREAKER=stopping after {consecutive_errors} consecutive product errors at {idx}/{len(urls)}",
+                    flush=True,
+                )
+                stopped_early = True
+                break
+
         if idx % 10 == 0:
             print(f"CATALOG_PROGRESS={idx}/{len(urls)}", flush=True)
         time.sleep(0.35)
-    return {"rows":rows,"errors":errors,"product_count":len(urls),"category_count":len(categories)}
+
+    return {
+        "rows":rows,
+        "errors":errors,
+        "product_count":len(urls),
+        "category_count":len(categories),
+        "stopped_early":stopped_early,
+        "processed_count":len(rows)+len(errors),
+    }
