@@ -127,6 +127,8 @@ class FjordNansenClient:
         if self._is_service_url(url):
             return False
         # IdoSell SEO convention on this shop: categories use eng_m_, products use eng_pm_.
+        if "product-eng-" in path:
+            return True
         if "eng_pm_" in path or "_pm_" in path:
             return True
         if "eng_m_" in path or "_m_" in path:
@@ -301,12 +303,26 @@ class FjordNansenClient:
 
                 for img in soup.find_all("img", src=True):
                     a = img.find_parent("a", href=True)
-                    if not a:
-                        continue
-                    href = urljoin(r.url, a["href"]).split("#")[0]
-                    item = {"label": (img.get("alt") or " ".join(a.stripped_strings)).strip()[:160], "url": href}
-                    if self._same_host(href) and self._looks_like_product(item):
-                        product_links.append(item)
+                    if a:
+                        href = urljoin(r.url, a["href"]).split("#")[0]
+                        item = {"label": (img.get("alt") or " ".join(a.stripped_strings)).strip()[:160], "url": href}
+                        if self._same_host(href) and self._looks_like_product(item):
+                            product_links.append(item)
+
+                    parent = img.parent
+                    for _ in range(4):
+                        if not parent:
+                            break
+                        product_id = parent.attrs.get("data-product-id") or parent.attrs.get("data-product_id")
+                        if product_id:
+                            for aa in parent.find_all("a", href=True, limit=6):
+                                href = urljoin(r.url, aa["href"]).split("#")[0]
+                                item = {"label": (img.get("alt") or "").strip()[:160], "url": href}
+                                if self._same_host(href) and self._looks_like_product(item):
+                                    product_links.append(item)
+                                    break
+                            break
+                        parent = parent.parent
 
                 dedup = []
                 seen_page = set()
