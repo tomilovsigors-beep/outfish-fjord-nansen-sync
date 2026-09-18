@@ -17,46 +17,140 @@ class FjordNansenClient:
     def signin_url(self) -> str:
         return urljoin(self.base_url, "signin.php")
 
-    def _sanitized_login_forms(self, html: str, page_url: str) -> list[dict]:
+    def _find_login_form(self, html: str, page_url: str):
         soup = BeautifulSoup(html, "html.parser")
-        forms = []
         for index, form in enumerate(soup.find_all("form")):
-            inputs = []
-            has_password = False
-            for tag in form.find_all(["input", "select", "textarea"]):
-                field_type = (tag.get("type") or tag.name or "").lower()
-                name = tag.get("name")
-                if field_type == "password":
-                    has_password = True
-                inputs.append({
-                    "tag": tag.name,
-                    "type": field_type,
-                    "name": name,
-                    "has_value": bool(tag.get("value")),
-                })
+            if form.find("input", {"type": "password"}):
+                return index, form
+        return None, None
 
-            if has_password:
-                action = form.get("action") or page_url
-                forms.append({
-                    "index": index,
-                    "method": (form.get("method") or "GET").upper(),
-                    "action": urljoin(page_url, action),
-                    "fields": inputs,
-                })
-        return forms
+    def _sanitized_login_form(self, html: str, page_url: str) -> dict:
+        index, form = self._find_login_form(html, page_url)
+        if form is None:
+            return {}
+
+        fields = []
+        for tag in form.find_all(["input", "select", "textarea"]):
+            field_type = (tag.get("type") or tag.name or "").lower()
+            fields.append({
+                "tag": tag.name,
+                "type": field_type,
+                "name": tag.get("name"),
+                "has_value": bool(tag.get("value")),
+            })
+
+        return {
+            "index": index,
+            "method": (form.get("method") or "GET").upper(),
+            "action": urljoin(page_url, form.get("action") or page_url),
+            "fields": fields,
+        }
 
     def inspect_public_signin(self) -> dict:
         response = self.session.get(self.signin_url(), timeout=30)
         response.raise_for_status()
-
-        login_forms = self._sanitized_login_forms(response.text, response.url)
+        login_form = self._sanitized_login_form(response.text, response.url)
 
         return {
             "url": response.url,
             "status_code": response.status_code,
             "reachable": True,
-            "login_forms": login_forms,
-            "login_forms_found": len(login_forms),
+            "login_form": login_form,
+            "login_forms_found": 1 if login_form else 0,
+        }
+
+    def _build_login_payload(self, form) -> dict:
+        payload = {}
+        for tag in form.find_all("input"):
+            name = tag.get("name")
+            if not name:
+                continue
+            field_type = (tag.get("type") or "text").lower()
+            if field_type in {"submit", "button", "image", "file"}:
+                continue
+            if field_type in {"checkbox", "radio"} and not tag.has_attr("checked"):
+                continue
+            payload[name] = tag.get("value", "")
+
+        payload["login"] = self.login
+        payload["password"] = self.password
+        return payload
+
+    def login_and_audit(self) -> dict:
+        first = self.session.get(self.signin_url(), timeout=30)
+        first.raise_for_status()
+
+        index, form = self._find_login_form(first.text, first.url)
+        if form is None:
+            return {"authenticated": False, "reason": "login_form_not_found"}
+
+        action = urljoin(first.url, form.get("action") or first.url)
+        method = (form.get("method") or "GET").upper()
+        payload = self._build_login_payload(form)
+
+        if method == "POST":
+            response = self.session.post(
+                action,
+                data=payload,
+                timeout=30,
+                allow_redirects=True,
+                headers={"Referer": first.url},
+            )
+        else:
+            response = self.session.get(
+                action,
+                params=payload,
+                timeout=30,
+                allow_redirects=True,
+                headers={"Referer": first.url},
+            )
+
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        still_has_password = bool(soup.find("input", {"type": "password"}))
+        text = " ".join(soup.stripped_strings).lower()
+        authenticated_markers = [
+            "log out",
+            "logout",
+            "wyloguj",
+            "my account",
+            "your account",
+            "account details",
+            "orders",
+        ]
+        marker_hits = [m for m in authenticated_markers if m in text]
+
+        links = []
+        for a in soup.find_all("a", href=True):
+            href = urljoin(response.url, a["href"])
+            label = " ".join(a.stripped_strings).strip()
+            combined = f"{label} {href}".lower()
+            if any(key in combined for key in [
+                "product", "category", "offer", "catalog", "search",
+                "order", "account", "discount", "stock"
+            ]):
+                links.append({"label": label[:120], "url": href})
+
+        deduped = []
+        seen = set()
+        for item in links:
+            key = item["url"]
+            if key not in seen:
+                seen.add(key)
+                deduped.append(item)
+
+        authenticated = (not still_has_password) and bool(marker_hits)
+
+        return {
+            "authenticated": authenticated,
+            "final_url": response.url,
+            "status_code": response.status_code,
+            "login_form_index": index,
+            "still_has_password_form": still_has_password,
+            "authenticated_marker_hits": marker_hits[:10],
+            "candidate_links": deduped[:40],
+            "page_title": soup.title.get_text(" ", strip=True)[:200] if soup.title else "",
         }
 
     def authenticated_audit(self) -> dict:
@@ -65,13 +159,4 @@ class FjordNansenClient:
                 "authenticated": False,
                 "reason": "credentials_not_configured",
             }
-
-        # Credentials are intentionally not submitted until the exact supplier
-        # login form mapping has been observed from a real Render run.
-        public = self.inspect_public_signin()
-        return {
-            "authenticated": False,
-            "reason": "credentials_present_form_mapping_captured",
-            "login_forms_found": public["login_forms_found"],
-            "next_step": "map exact login field names and implement authenticated POST",
-        }
+        return self.login_and_audit()
