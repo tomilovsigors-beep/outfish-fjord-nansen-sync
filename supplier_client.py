@@ -214,6 +214,87 @@ class FjordNansenClient:
                 break
         return samples
 
+    def _extract_product_facts(self, html: str, page_url: str) -> dict:
+        soup = BeautifulSoup(html, "html.parser")
+        facts = {}
+
+        # Common IdoSell specification rows / definition lists / labeled containers.
+        pairs = []
+        for row in soup.find_all(["tr", "li", "div", "p", "dl"]):
+            text = " ".join(row.stripped_strings).strip()
+            low = text.lower()
+            if not text or len(text) > 600:
+                continue
+            if any(k in low for k in [
+                "ean", "symbol", "code", "price", "regular price",
+                "availability", "stock", "quantity", "size", "color",
+                "colour", "weight", "producer", "manufacturer"
+            ]):
+                pairs.append(text)
+
+        # Structured attributes often carry exact values even when visual labels vary.
+        attrs = []
+        for tag in soup.find_all(True):
+            selected = {}
+            for k, v in (tag.attrs or {}).items():
+                ks = str(k).lower()
+                if any(x in ks for x in [
+                    "ean", "code", "symbol", "product", "size", "stock",
+                    "quantity", "price", "availability", "color", "weight"
+                ]):
+                    selected[k] = v
+            if selected:
+                attrs.append({
+                    "tag": tag.name,
+                    "attrs": selected,
+                    "text": " ".join(tag.stripped_strings)[:220],
+                })
+            if len(attrs) >= 80:
+                break
+
+        variants = []
+        seen = set()
+        for inp in soup.find_all("input"):
+            name = inp.get("name") or ""
+            if name.startswith("product["):
+                variant_key = name.split("[", 1)[1].split("]", 1)[0]
+                if variant_key in seen:
+                    continue
+                seen.add(variant_key)
+                block = inp
+                for _ in range(4):
+                    block = block.parent
+                    if not block:
+                        break
+                    t = " ".join(block.stripped_strings).strip()
+                    if t and len(t) < 1200:
+                        variants.append({
+                            "variant_key": variant_key,
+                            "product_value": inp.get("value"),
+                            "text": t[:800],
+                        })
+                        break
+
+        # Schema.org / JSON-LD can contain EAN/GTIN, SKU, price and availability.
+        jsonld = []
+        import json as _json
+        for script in soup.find_all("script", {"type": "application/ld+json"}):
+            raw = script.string or script.get_text()
+            if not raw:
+                continue
+            try:
+                data = _json.loads(raw)
+                jsonld.append(data)
+            except Exception:
+                continue
+
+        return {
+            "label_value_texts": pairs[:80],
+            "structured_attrs": attrs[:80],
+            "variants": variants[:30],
+            "jsonld": jsonld[:10],
+        }
+
     def _inspect_page_fields(self, html: str, page_url: str) -> dict:
         soup = BeautifulSoup(html, "html.parser")
         title = soup.title.get_text(" ", strip=True)[:200] if soup.title else ""
@@ -267,6 +348,7 @@ class FjordNansenClient:
             "images": images[:30],
             "tables": tables[:8],
             "forms": forms[:8],
+            "facts": self._extract_product_facts(html, page_url),
         }
 
     def authenticated_audit(self) -> dict:
