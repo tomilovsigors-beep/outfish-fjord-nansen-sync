@@ -1,2 +1,4 @@
 requests==2.32.5
 beautifulsoup4==4.12.3
+gspread==6.2.1
+google-auth==2.40.3
