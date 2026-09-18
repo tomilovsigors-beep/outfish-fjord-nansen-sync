@@ -35,7 +35,15 @@ def main() -> int:
         password=cfg["password"],
     )
 
-    result = collect_catalog(client)
+    try:
+        result = collect_catalog(client)
+    except RuntimeError as exc:
+        if str(exc).startswith("B2B_UNAVAILABLE:"):
+            emit("B2B_UNAVAILABLE", {"reason": str(exc)})
+            print("Supplier B2B temporarily unavailable; safe no-op.", flush=True)
+            return 0
+        raise
+
     rows = result["rows"]
 
     emit("CATALOG_SUMMARY", {
