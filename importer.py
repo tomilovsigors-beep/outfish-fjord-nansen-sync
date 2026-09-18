@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse, parse_qsl, urlencode
 
@@ -41,10 +42,18 @@ def _product_jsonld(soup):
     return {}
 
 
-def _label_value(text, label):
-    pattern = rf"(?:^|\s){re.escape(label)}\s+(.+?)(?=\s+[A-Z][A-Za-z \[\]]{{2,30}}\s+|$)"
-    m = re.search(pattern, text, re.I)
-    return m.group(1).strip() if m else ""
+def _spec_value(text, label, reject=None):
+    reject = set(x.lower() for x in (reject or []))
+    pat = re.compile(rf"(?:^|\s){re.escape(label)}\s+([^|\n]+?)(?=\s{2,}|\s(?:Symbol|Producer code|Size|Color|Colour|Weight \[g\]|Pack size|Fill weight \[g\])\s|$)", re.I)
+    matches = [m.group(1).strip() for m in pat.finditer(text)]
+    for value in reversed(matches):
+        low = value.lower().strip(" :,-")
+        if not low or low in reject:
+            continue
+        if len(value) > 80:
+            continue
+        return value.strip()
+    return ""
 
 
 def _breadcrumb_category(soup):
@@ -117,11 +126,11 @@ def parse_product(html, url, default_vat=0.23):
         producer_code = mcode.group(1)
     ean = producer_code if re.fullmatch(r"\d{8}|\d{12}|\d{13}|\d{14}", producer_code or "") else ""
 
-    size = _label_value(text, "Size")
-    color = _label_value(text, "Color") or _label_value(text, "Colour")
-    weight = _num(_label_value(text, "Weight [g]"))
-    pack_size = _label_value(text, "Pack size")
-    fill_weight = _num(_label_value(text, "Fill weight [g]"))
+    size = _spec_value(text, "Size", reject={"price", "quantity", "price / item"})
+    color = _spec_value(text, "Color", reject={"palette", "palette,"}) or _spec_value(text, "Colour")
+    weight = _num(_spec_value(text, "Weight [g]"))
+    pack_size = _spec_value(text, "Pack size")
+    fill_weight = _num(_spec_value(text, "Fill weight [g]"))
 
     stock = None
     ms = re.search(r"\(\s*(\d+)\s+items? in stock\s*\)", text, re.I)
@@ -249,6 +258,27 @@ def discover_product_urls(client, max_categories=200, max_pages_per_category=25)
     return list(products.values()), category_urls
 
 
+def _get_with_retries(client, url, attempts=5):
+    last_status = None
+    for attempt in range(1, attempts + 1):
+        r = client.session.get(url, timeout=30, allow_redirects=True)
+        last_status = r.status_code
+        if r.status_code < 400:
+            return r
+
+        if r.status_code in {401, 403, 429}:
+            # Refresh authenticated session and slow down before retrying.
+            try:
+                client._authenticate()
+            except Exception:
+                pass
+            time.sleep(min(8.0, 1.2 * attempt))
+            continue
+
+        r.raise_for_status()
+    raise RuntimeError(f"HTTP status {last_status} after {attempts} attempts")
+
+
 def collect_catalog(client, limit=None):
     urls, categories = discover_product_urls(client)
     if limit:
@@ -257,11 +287,11 @@ def collect_catalog(client, limit=None):
     errors = []
     for idx, url in enumerate(urls, start=1):
         try:
-            r = client.session.get(url, timeout=30, allow_redirects=True)
-            r.raise_for_status()
+            r = _get_with_retries(client, url)
             rows.append(parse_product(r.text, r.url))
         except Exception as exc:
-            errors.append({"url":url,"error":type(exc).__name__})
-        if idx % 25 == 0:
+            errors.append({"url":url,"error":type(exc).__name__,"message":str(exc)[:180]})
+        if idx % 10 == 0:
             print(f"CATALOG_PROGRESS={idx}/{len(urls)}", flush=True)
+        time.sleep(0.35)
     return {"rows":rows,"errors":errors,"product_count":len(urls),"category_count":len(categories)}
