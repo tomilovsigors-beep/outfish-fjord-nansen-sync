@@ -44,6 +44,7 @@ def main() -> int:
     emit("CATEGORY_LINKS", audit.get("category_links", [])[:40])
     emit("DISCOVERY_PAGES", audit.get("discovery_pages", [])[:15])
     emit("PRODUCT_CANDIDATES", audit.get("product_candidates", [])[:20])
+    emit("PRODUCT_BLOCK_SAMPLES", audit.get("product_block_samples", [])[:5])
     emit("SAMPLE_PRODUCT_PAGES", audit.get("sample_product_pages", [])[:3])
 
     return 0
