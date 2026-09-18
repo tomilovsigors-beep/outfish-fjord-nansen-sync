@@ -10,9 +10,7 @@ class FjordNansenClient:
         self.login = login
         self.password = password
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Outfish-Fjord-Nansen-Sync/0.1"
-        })
+        self.session.headers.update({"User-Agent": "Outfish-Fjord-Nansen-Sync/0.1"})
 
     def signin_url(self) -> str:
         return urljoin(self.base_url, "signin.php")
@@ -23,40 +21,6 @@ class FjordNansenClient:
             if form.find("input", {"type": "password"}):
                 return index, form
         return None, None
-
-    def _sanitized_login_form(self, html: str, page_url: str) -> dict:
-        index, form = self._find_login_form(html, page_url)
-        if form is None:
-            return {}
-
-        fields = []
-        for tag in form.find_all(["input", "select", "textarea"]):
-            field_type = (tag.get("type") or tag.name or "").lower()
-            fields.append({
-                "tag": tag.name,
-                "type": field_type,
-                "name": tag.get("name"),
-                "has_value": bool(tag.get("value")),
-            })
-
-        return {
-            "index": index,
-            "method": (form.get("method") or "GET").upper(),
-            "action": urljoin(page_url, form.get("action") or page_url),
-            "fields": fields,
-        }
-
-    def inspect_public_signin(self) -> dict:
-        response = self.session.get(self.signin_url(), timeout=30)
-        response.raise_for_status()
-        login_form = self._sanitized_login_form(response.text, response.url)
-        return {
-            "url": response.url,
-            "status_code": response.status_code,
-            "reachable": True,
-            "login_form": login_form,
-            "login_forms_found": 1 if login_form else 0,
-        }
 
     def _build_login_payload(self, form) -> dict:
         payload = {}
@@ -74,6 +38,32 @@ class FjordNansenClient:
         payload["password"] = self.password
         return payload
 
+    def inspect_public_signin(self) -> dict:
+        response = self.session.get(self.signin_url(), timeout=30)
+        response.raise_for_status()
+        index, form = self._find_login_form(response.text, response.url)
+        fields = []
+        if form:
+            for tag in form.find_all(["input", "select", "textarea"]):
+                fields.append({
+                    "tag": tag.name,
+                    "type": (tag.get("type") or tag.name or "").lower(),
+                    "name": tag.get("name"),
+                    "has_value": bool(tag.get("value")),
+                })
+        return {
+            "url": response.url,
+            "status_code": response.status_code,
+            "reachable": True,
+            "login_form": {
+                "index": index,
+                "method": (form.get("method") or "GET").upper() if form else None,
+                "action": urljoin(response.url, form.get("action") or response.url) if form else None,
+                "fields": fields,
+            } if form else {},
+            "login_forms_found": 1 if form else 0,
+        }
+
     def _authenticate(self):
         first = self.session.get(self.signin_url(), timeout=30)
         first.raise_for_status()
@@ -82,25 +72,20 @@ class FjordNansenClient:
             return None, {"authenticated": False, "reason": "login_form_not_found"}
 
         action = urljoin(first.url, form.get("action") or first.url)
-        method = (form.get("method") or "GET").upper()
         payload = self._build_login_payload(form)
+        method = (form.get("method") or "GET").upper()
 
         if method == "POST":
-            response = self.session.post(
-                action, data=payload, timeout=30, allow_redirects=True,
-                headers={"Referer": first.url},
-            )
+            response = self.session.post(action, data=payload, timeout=30, allow_redirects=True, headers={"Referer": first.url})
         else:
-            response = self.session.get(
-                action, params=payload, timeout=30, allow_redirects=True,
-                headers={"Referer": first.url},
-            )
+            response = self.session.get(action, params=payload, timeout=30, allow_redirects=True, headers={"Referer": first.url})
 
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         text = " ".join(soup.stripped_strings).lower()
         marker_hits = [m for m in ["orders", "logout", "wyloguj", "account"] if m in text]
         authenticated = not bool(soup.find("input", {"type": "password"})) and bool(marker_hits)
+
         return response, {
             "authenticated": authenticated,
             "final_url": response.url,
@@ -119,31 +104,64 @@ class FjordNansenClient:
             href = urljoin(page_url, a["href"])
             if not self._same_host(href):
                 continue
-            if href in seen:
+            href = href.split("#")[0]
+            if not href or href in seen:
                 continue
             seen.add(href)
             label = " ".join(a.stripped_strings).strip()
             out.append({"label": label[:160], "url": href})
         return out
 
-    def _classify_links(self, links: list[dict]) -> dict:
-        categories, products, searches = [], [], []
-        for item in links:
-            s = f"{item['label']} {item['url']}".lower()
-            if any(k in s for k in ["category", "menu_categories", "categories"]):
-                categories.append(item)
-            if any(k in s for k in [
-                "product.php", "product-", "/product/", "projector.php",
-                "towar", "item.php", "details.php"
-            ]):
-                products.append(item)
-            if "search.php" in s:
-                searches.append(item)
-        return {
-            "category_links": categories[:80],
-            "product_links": products[:40],
-            "search_links": searches[:20],
-        }
+    def _is_service_url(self, url: str) -> bool:
+        path = urlparse(url).path.lower()
+        return any(x in path for x in [
+            "login.php", "signin.php", "logout", "basket", "order", "client-",
+            "rma-", "shoppinglist", "products-bought", "products-requests",
+            "noproduct.php", "contact", "newsletter"
+        ])
+
+    def _looks_like_product(self, item: dict) -> bool:
+        url = item["url"].lower()
+        label = item["label"].lower()
+        path = urlparse(url).path.lower()
+        if self._is_service_url(url):
+            return False
+        if any(k in path for k in ["projector.php", "product.php", "/product/", "/products/"]):
+            return True
+        if any(k in url for k in ["-p-", "product_id=", "id_product=", "projector"]):
+            return True
+        # IdoSell often uses SEO paths without "product" in the filename.
+        if path not in {"", "/"} and path.endswith((".html", ".htm")):
+            return True
+        if label and any(k in label for k in ["€", "size", "colour", "color"]) and "search.php" not in url:
+            return True
+        return False
+
+    def _extract_menu_categories(self, html: str, page_url: str) -> list[dict]:
+        soup = BeautifulSoup(html, "html.parser")
+        anchors = []
+        seen = set()
+
+        menu = soup.find(id="menu_categories")
+        containers = [menu] if menu else []
+
+        for tag in soup.find_all(attrs={"class": True}):
+            classes = " ".join(tag.get("class", [])).lower()
+            if "category" in classes or "categories" in classes:
+                containers.append(tag)
+
+        for container in containers[:20]:
+            if not container:
+                continue
+            for a in container.find_all("a", href=True):
+                href = urljoin(page_url, a["href"]).split("#")[0]
+                if not self._same_host(href) or href in seen or self._is_service_url(href):
+                    continue
+                seen.add(href)
+                label = " ".join(a.stripped_strings).strip()
+                if label:
+                    anchors.append({"label": label[:160], "url": href})
+        return anchors[:120]
 
     def _inspect_page_fields(self, html: str, page_url: str) -> dict:
         soup = BeautifulSoup(html, "html.parser")
@@ -154,35 +172,50 @@ class FjordNansenClient:
         for img in soup.find_all("img", src=True):
             src = urljoin(page_url, img["src"])
             alt = (img.get("alt") or "").strip()
+            if "logo_" in src or "poweredby" in src or "checkup.php" in src:
+                continue
             images.append({"src": src, "alt": alt[:120]})
 
-        labels = []
         keywords = [
             "ean", "gtin", "barcode", "sku", "symbol", "code", "catalog",
             "price", "vat", "availability", "stock", "quantity", "warehouse",
             "size", "colour", "color", "weight"
         ]
         lower = text.lower()
-        for kw in keywords:
-            if kw in lower:
-                labels.append(kw)
+        detected = [kw for kw in keywords if kw in lower]
 
         tables = []
         for table in soup.find_all("table")[:10]:
             rows = []
-            for tr in table.find_all("tr")[:20]:
-                cells = [" ".join(c.stripped_strings)[:160] for c in tr.find_all(["th", "td"])]
+            for tr in table.find_all("tr")[:30]:
+                cells = [" ".join(c.stripped_strings)[:180] for c in tr.find_all(["th", "td"])]
                 if cells:
                     rows.append(cells)
             if rows:
                 tables.append(rows)
 
+        forms = []
+        for form in soup.find_all("form")[:10]:
+            fields = []
+            for tag in form.find_all(["input", "select", "textarea"]):
+                fields.append({
+                    "tag": tag.name,
+                    "type": (tag.get("type") or tag.name or "").lower(),
+                    "name": tag.get("name"),
+                })
+            forms.append({
+                "action": urljoin(page_url, form.get("action") or page_url),
+                "method": (form.get("method") or "GET").upper(),
+                "fields": fields[:30],
+            })
+
         return {
             "url": page_url,
             "page_title": title,
-            "detected_keywords": labels,
-            "images": images[:20],
-            "tables": tables[:5],
+            "detected_keywords": detected,
+            "images": images[:30],
+            "tables": tables[:8],
+            "forms": forms[:8],
         }
 
     def authenticated_audit(self) -> dict:
@@ -193,31 +226,45 @@ class FjordNansenClient:
         if response is None or not auth.get("authenticated"):
             return auth
 
-        links = self._collect_links(response.text, response.url)
-        classified = self._classify_links(links)
+        home_links = self._collect_links(response.text, response.url)
+        categories = self._extract_menu_categories(response.text, response.url)
 
-        # Inspect search results for a generic in-stock catalogue sample if possible.
+        # Probe categories and search/promotions to discover real product URLs.
+        discovery_pages = []
+        seed_urls = [urljoin(self.base_url, "search.php?promo=y")]
+        seed_urls += [c["url"] for c in categories[:12]]
+
+        product_candidates = []
+        seen_products = set()
+
+        for url in seed_urls[:15]:
+            try:
+                r = self.session.get(url, timeout=30, allow_redirects=True)
+                r.raise_for_status()
+                links = self._collect_links(r.text, r.url)
+                product_links = [x for x in links if self._looks_like_product(x)]
+                for item in product_links:
+                    if item["url"] not in seen_products:
+                        seen_products.add(item["url"])
+                        product_candidates.append(item)
+                discovery_pages.append({
+                    "url": r.url,
+                    "title": BeautifulSoup(r.text, "html.parser").title.get_text(" ", strip=True)[:160]
+                    if BeautifulSoup(r.text, "html.parser").title else "",
+                    "links_seen": len(links),
+                    "product_candidates_found": len(product_links),
+                    "sample_product_links": product_links[:8],
+                })
+            except Exception as exc:
+                discovery_pages.append({"url": url, "error": type(exc).__name__})
+
         sample_pages = []
-        candidates = classified["product_links"][:3]
-        if not candidates:
-            search_candidates = classified["search_links"][:2]
-            for item in search_candidates:
-                try:
-                    r = self.session.get(item["url"], timeout=30, allow_redirects=True)
-                    r.raise_for_status()
-                    more = self._classify_links(self._collect_links(r.text, r.url))["product_links"]
-                    candidates.extend(more[:3])
-                except Exception:
-                    pass
-
-        seen = set()
-        for item in candidates:
-            if item["url"] in seen:
-                continue
-            seen.add(item["url"])
+        for item in product_candidates[:5]:
             try:
                 r = self.session.get(item["url"], timeout=30, allow_redirects=True)
                 r.raise_for_status()
+                if "noproduct.php" in r.url.lower():
+                    continue
                 sample_pages.append(self._inspect_page_fields(r.text, r.url))
             except Exception as exc:
                 sample_pages.append({"url": item["url"], "error": type(exc).__name__})
@@ -225,8 +272,10 @@ class FjordNansenClient:
                 break
 
         auth.update({
-            "navigation": classified,
+            "category_links": categories,
+            "discovery_pages": discovery_pages[:15],
+            "product_candidates": product_candidates[:30],
             "sample_product_pages": sample_pages,
-            "total_internal_links_seen": len(links),
+            "total_home_links_seen": len(home_links),
         })
         return auth
