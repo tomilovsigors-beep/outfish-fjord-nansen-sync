@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 
 from config import settings
@@ -9,6 +10,15 @@ from supplier_client import FjordNansenClient
 
 def emit(label: str, value) -> None:
     print(f"{label}={json.dumps(value, ensure_ascii=False)}", flush=True)
+
+
+def write_jsonl(path: str, rows: list[dict]) -> None:
+    if not path:
+        return
+    with open(path, "w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    print(f"OUTPUT_JSONL={path} rows={len(rows)}", flush=True)
 
 
 def main() -> int:
@@ -45,12 +55,15 @@ def main() -> int:
         raise
 
     rows = result["rows"]
+    write_jsonl(os.getenv("OUTPUT_JSONL_PATH", "").strip(), rows)
 
     emit("CATALOG_SUMMARY", {
         "products_discovered": result["product_count"],
         "rows_parsed": len(rows),
         "categories": result["category_count"],
         "errors": len(result["errors"]),
+        "stopped_early": result.get("stopped_early", False),
+        "processed_count": result.get("processed_count"),
         "sample": rows[:2],
     })
 
