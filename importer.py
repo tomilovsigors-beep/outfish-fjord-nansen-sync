@@ -161,14 +161,24 @@ def parse_product(html, url, default_vat=0.23):
     ean = producer_code if re.fullmatch(r"\d{8}|\d{12}|\d{13}|\d{14}", producer_code or "") else ""
 
     active_variant_id, active_stock, active_size = _active_variant(soup)
-    size = active_size or _short_spec(
-        _spec_value(text, "Size", reject={"price", "quantity", "price / item"}),
-        ["shape", "material", "dimensions", "fabric", "filling", "zipper", "price", "quantity", "availability", "discount", "circumference"],
-    )
-    color = _short_spec(
+    # Size is accepted only from the active IdoSell variant row. Generic page text
+    # also contains package dimensions and other measurements, which are not sizes.
+    size = active_size
+
+    color_candidate = _short_spec(
         _spec_value(text, "Color", reject={"palette", "palette,"}) or _spec_value(text, "Colour"),
-        ["fabric", "material", "price", "quantity", "availability"],
+        ["fabric", "material", "price", "quantity", "availability", "dimensions", "patch", "cap "],
     )
+    # Keep color only when it looks like a compact attribute value, not prose,
+    # dimensions, product-name fragments or measurements.
+    if (
+        color_candidate
+        and not re.search(r"[.!?;]|\\d|\\[|\\]", color_candidate)
+        and len(color_candidate.split()) <= 4
+    ):
+        color = color_candidate
+    else:
+        color = ""
     weight = _num(_spec_value(text, "Weight [g]"))
     pack_size = _spec_value(text, "Pack size")
     fill_weight = _num(_spec_value(text, "Fill weight [g]"))
@@ -205,11 +215,19 @@ def parse_product(html, url, default_vat=0.23):
     category = _breadcrumb_category(soup)
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+    availability_conflict = bool(
+        stock is not None
+        and stock > 0
+        and str(availability).endswith("/OutOfStock")
+    )
     attrs = {
         "source_list_price_net_eur": list_net,
         "source_msrp_gross_eur": msrp_gross,
         "source_sale_price_net_eur": sale_net,
         "availability": availability,
+        "availability_scope": "product_jsonld",
+        "stock_source": "active_variant_data_amount" if active_stock is not None else "active_variant_text_fallback",
+        "availability_conflict": availability_conflict,
         "pack_size": pack_size,
         "fill_weight_g": fill_weight,
         "source_price_type": "net",
