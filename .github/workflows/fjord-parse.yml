@@ -19,7 +19,7 @@ jobs:
       DRY_RUN: "true"
       SHEET_WRITE_ENABLED: "false"
       SHOPIFY_WRITE_ENABLED: "false"
-      OUTPUT_JSONL_PATH: fjord_catalog.jsonl
+      OUTPUT_JSONL_PATH: ""
 
     steps:
       - name: Checkout
@@ -36,11 +36,3 @@ jobs:
       - name: Parse Fjord catalogue
         run: python sync.py
 
-      - name: Upload parse artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fjord-parse-output
-          path: fjord_catalog.jsonl
-          if-no-files-found: ignore
-          retention-days: 7
