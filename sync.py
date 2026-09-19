@@ -107,6 +107,21 @@ def main() -> int:
         emit("CATALOG_ERRORS", result["errors"][:20])
 
     if cfg["sheet_write_enabled"]:
+        blockers = []
+        if result["errors"]:
+            blockers.append(f"errors={len(result['errors'])}")
+        if result.get("stopped_early"):
+            blockers.append("stopped_early=true")
+        if not rows:
+            blockers.append("rows=0")
+        if audit["variant_id_missing"]:
+            blockers.append(f"variant_id_missing={audit['variant_id_missing']}")
+        if audit["sku_missing"]:
+            blockers.append(f"sku_missing={audit['sku_missing']}")
+        if audit["stock_missing"]:
+            blockers.append(f"stock_missing={audit['stock_missing']}")
+        if blockers:
+            raise RuntimeError("FN_RAW write blocked by audit: " + ", ".join(blockers))
         if not cfg["google_credentials_ready"]:
             raise RuntimeError("SHEET_WRITE_ENABLED=true but GOOGLE_SERVICE_ACCOUNT_JSON is not configured")
         write_result = upsert_fn_raw(cfg["sheet_id"], cfg["google_service_account_json"], rows)
