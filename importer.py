@@ -57,7 +57,7 @@ def _spec_value(text, label, reject=None):
 
 
 def _short_spec(value, bad_terms=None):
-    value = re.sub(r"\\s+", " ", str(value or "")).strip(" :,-")
+    value = re.sub(r"\s+", " ", str(value or "")).strip(" :,-")
     if not value or len(value) > 32:
         return ""
     low = value.lower()
@@ -74,7 +74,7 @@ def _active_variant(soup):
     stock = None
     if qty is not None:
         name = qty.get("name") or ""
-        match = re.search(r"set_quantity\\[(\\d+)\\]", name)
+        match = re.search(r"set_quantity\[(\d+)\]", name)
         if match:
             variant_id = match.group(1)
         amount = str(qty.get("data-amount") or "").strip()
@@ -84,7 +84,7 @@ def _active_variant(soup):
     size = ""
     if block is not None:
         block_text = " ".join(block.stripped_strings)
-        match = re.match(r"^(.{1,32}?)\\s+\\d+[,.]\\d{2}\\s*(?:€|EUR)", block_text, re.I)
+        match = re.match(r"^(.{1,32}?)\s+\d+[,.]\d{2}\s*(?:€|EUR)", block_text, re.I)
         if match:
             size = _short_spec(match.group(1), ["price", "quantity", "availability", "discount", "shipping"])
     return variant_id, stock, size
