@@ -12,16 +12,44 @@ Fjord Nansen B2B
 → Shopify Outfish
 → existing marketplace flows consume Shopify data downstream.
 
+## Runtime migration
+
+Fjord B2B fetching is being migrated from Render to GitHub Actions because Render connections to the supplier started timing out.
+
+Current GitHub Actions stage is intentionally manual and parse-only:
+
+- workflow: `.github/workflows/fjord-parse.yml`
+- trigger: manual `workflow_dispatch`
+- `DRY_RUN=true`
+- `SHEET_WRITE_ENABLED=false`
+- `SHOPIFY_WRITE_ENABLED=false`
+- parsed rows are uploaded as a 7-day artifact named `fjord-parse-output`
+
+After one clean full-catalog run, daily scheduling and Google Sheets writes can be enabled.
+
+## GitHub Actions secrets
+
+Repository → Settings → Secrets and variables → Actions → New repository secret.
+
+Required now:
+
+- `FJORD_B2B_LOGIN`
+- `FJORD_B2B_PASSWORD`
+
+Required later for automatic FN_RAW writes:
+
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+
+Do not commit credential values to this repository.
+
 ## Safety model
 
-- Supplier credentials exist only in Render environment variables.
-- No credentials are committed to GitHub.
-- Initial mode is DRY_RUN=true.
+- No supplier credentials are committed to GitHub.
+- Initial mode is `DRY_RUN=true`.
 - Shopify writes are disabled by default.
 - EAN/GTIN is never fabricated.
-- If supplier SKU is missing, importer creates a deterministic internal SKU with FN-AUTO- prefix.
+- If supplier SKU is missing, importer creates a deterministic internal SKU with `FN-AUTO-` prefix.
 - Existing Outfish physical stock has priority over supplier stock.
-- Supplier data refreshes daily.
 - Manual price/content/image overrides must not be overwritten by supplier refresh.
 
 ## Supplier Master
@@ -30,27 +58,19 @@ Google Sheet ID:
 `1RRsV9mHZMV3gfQGIJq1OGQgc0qyI4zqJ-yv9Fg9Ygl8`
 
 Published Shopify locales:
+
 - EN (primary)
 - LV
 - RU
 
-## Render secrets to set
+## Render
 
-Required for B2B audit:
-- `FJORD_B2B_LOGIN`
-- `FJORD_B2B_PASSWORD`
+Render is no longer the preferred network path for Fjord B2B fetching. Keep its Fjord task in safe mode until GitHub Actions is validated:
 
-Already safe to configure as plain settings:
-- `FJORD_B2B_BASE_URL=https://b2b.fjordnansen.com`
-- `FJORD_SUPPLIER_SHEET_ID=1RRsV9mHZMV3gfQGIJq1OGQgc0qyI4zqJ-yv9Fg9Ygl8`
 - `DRY_RUN=true`
+- `SHEET_WRITE_ENABLED=false`
 - `SHOPIFY_WRITE_ENABLED=false`
-
-Later, only when write stages are approved:
-- `SHOPIFY_STORE_DOMAIN`
-- `SHOPIFY_ADMIN_ACCESS_TOKEN`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
 
 ## Current stage
 
-Bootstrap and authenticated B2B audit. No Shopify mutation is implemented yet.
+Manual GitHub Actions parse-only validation. No Shopify mutation is enabled.
