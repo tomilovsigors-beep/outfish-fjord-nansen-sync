@@ -84,9 +84,19 @@ def _active_variant(soup):
     size = ""
     if block is not None:
         block_text = " ".join(block.stripped_strings)
-        match = re.match(r"^(.{1,32}?)\s+\d+[,.]\d{2}\s*(?:€|EUR)", block_text, re.I)
+        # IdoSell sometimes prepends UI controls before the active variant label,
+        # e.g. "Show versions Hide black from 8,19 € ...".
+        block_text = re.sub(r"^Show versions\s+Hide\s+", "", block_text, flags=re.I)
+        match = re.match(
+            r"^(.{1,32}?)(?:\s+from)?\s+\d+[,.]\d{2}\s*(?:€|EUR)",
+            block_text,
+            re.I,
+        )
         if match:
-            size = _short_spec(match.group(1), ["price", "quantity", "availability", "discount", "shipping"])
+            size = _short_spec(
+                match.group(1),
+                ["price", "quantity", "availability", "discount", "shipping", "show versions", "hide "],
+            )
     return variant_id, stock, size
 
 
@@ -169,11 +179,12 @@ def parse_product(html, url, default_vat=0.23):
         _spec_value(text, "Color", reject={"palette", "palette,"}) or _spec_value(text, "Colour"),
         ["fabric", "material", "price", "quantity", "availability", "dimensions", "patch", "cap "],
     )
+    color_candidate = re.sub(r"\s*\[eng\]\s*$", "", color_candidate, flags=re.I).strip()
     # Keep color only when it looks like a compact attribute value, not prose,
     # dimensions, product-name fragments or measurements.
     if (
         color_candidate
-        and not re.search(r"[.!?;]|\\d|\\[|\\]", color_candidate)
+        and not re.search(r"[.!?;]|\d|\[|\]", color_candidate)
         and len(color_candidate.split()) <= 4
     ):
         color = color_candidate
