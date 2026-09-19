@@ -41,3 +41,24 @@ For products newly created by the Fjord pipeline:
 - after creation, inventory/availability may sync automatically;
 - future content changes require an explicit approved content workflow, never a blanket overwrite;
 - price may only follow the dedicated new-product pricing rule unless later changed manually, after which the manual value wins.
+
+
+## Pipeline ownership marker
+
+Do not decide mass-update ownership from product creation date.
+
+A Shopify product is Fjord-pipeline-managed only when it carries the explicit internal ownership marker:
+
+- namespace: outfish
+- key: fjord_managed
+- value: true
+
+Only products created by the Fjord pipeline may receive this marker.
+
+A product without this marker is treated as manually/external managed, even if it was created after the Fjord integration was enabled.
+
+Rules:
+- manually created products never receive automatic content, SEO, price, collection, tag, image, translation, handle, or publication-status updates;
+- if a manually managed product is explicitly matched to a supplier item, inventory/availability sync remains allowed;
+- newly created Fjord pipeline products receive the marker at creation time and start as DRAFT;
+- removing or disabling the marker must immediately exclude that product from future mass content/price updates.
