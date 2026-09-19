@@ -1,0 +1,46 @@
+name: Fjord Nansen parse-only test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FJORD_B2B_BASE_URL: https://b2b.fjordnansen.com
+      FJORD_B2B_LOGIN: ${{ secrets.FJORD_B2B_LOGIN }}
+      FJORD_B2B_PASSWORD: ${{ secrets.FJORD_B2B_PASSWORD }}
+      FJORD_SUPPLIER_SHEET_ID: 1RRsV9mHZMV3gfQGIJq1OGQgc0qyI4zqJ-yv9Fg9Ygl8
+      GOOGLE_SERVICE_ACCOUNT_JSON: ""
+      DRY_RUN: "true"
+      SHEET_WRITE_ENABLED: "false"
+      SHOPIFY_WRITE_ENABLED: "false"
+      OUTPUT_JSONL_PATH: fjord_catalog.jsonl
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Parse Fjord catalogue
+        run: python sync.py
+
+      - name: Upload parse artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fjord-parse-output
+          path: fjord_catalog.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
