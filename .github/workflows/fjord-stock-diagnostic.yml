@@ -1,0 +1,28 @@
+name: Fjord single-product stock diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FJORD_B2B_BASE_URL: https://b2b.fjordnansen.com
+      FJORD_B2B_LOGIN: ${{ secrets.FJORD_B2B_LOGIN }}
+      FJORD_B2B_PASSWORD: ${{ secrets.FJORD_B2B_PASSWORD }}
+      DRY_RUN: "true"
+      SHEET_WRITE_ENABLED: "false"
+      SHOPIFY_WRITE_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Inspect one product stock markup
+        run: python diagnostic_stock.py
