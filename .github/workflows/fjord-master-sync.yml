@@ -1,0 +1,30 @@
+name: Fjord FN_MASTER sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sync-master:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fjord-master-sync]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FJORD_SUPPLIER_SHEET_ID: 1RRsV9mHZMV3gfQGIJq1OGQgc0qyI4zqJ-yv9Fg9Ygl8
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      DRY_RUN: "true"
+      SHEET_WRITE_ENABLED: "false"
+      SHOPIFY_WRITE_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Build FN_MASTER from FN_RAW
+        run: python master_sync.py
