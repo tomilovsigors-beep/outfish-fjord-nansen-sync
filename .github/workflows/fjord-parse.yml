@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   parse:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fjord-control]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fjord-control]') || contains(github.event.head_commit.message, '[fjord-fnraw-write]')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -18,9 +18,9 @@ jobs:
       FJORD_B2B_LOGIN: ${{ secrets.FJORD_B2B_LOGIN }}
       FJORD_B2B_PASSWORD: ${{ secrets.FJORD_B2B_PASSWORD }}
       FJORD_SUPPLIER_SHEET_ID: 1RRsV9mHZMV3gfQGIJq1OGQgc0qyI4zqJ-yv9Fg9Ygl8
-      GOOGLE_SERVICE_ACCOUNT_JSON: ""
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       DRY_RUN: "true"
-      SHEET_WRITE_ENABLED: "false"
+      SHEET_WRITE_ENABLED: ${{ contains(github.event.head_commit.message, '[fjord-fnraw-write]') && 'true' || 'false' }}
       SHOPIFY_WRITE_ENABLED: "false"
       OUTPUT_JSONL_PATH: ""
 
