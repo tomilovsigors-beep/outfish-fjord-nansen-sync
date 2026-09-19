@@ -56,6 +56,40 @@ def _spec_value(text, label, reject=None):
     return ""
 
 
+def _short_spec(value, bad_terms=None):
+    value = re.sub(r"\\s+", " ", str(value or "")).strip(" :,-")
+    if not value or len(value) > 32:
+        return ""
+    low = value.lower()
+    if any(term.lower() in low for term in (bad_terms or [])):
+        return ""
+    return value
+
+
+def _active_variant(soup):
+    block = soup.select_one(".projector_versions__block.--active")
+    scope = block or soup
+    qty = scope.select_one(".projector_versions__quantity[data-amount]")
+    variant_id = ""
+    stock = None
+    if qty is not None:
+        name = qty.get("name") or ""
+        match = re.search(r"set_quantity\\[(\\d+)\\]", name)
+        if match:
+            variant_id = match.group(1)
+        amount = str(qty.get("data-amount") or "").strip()
+        if amount.isdigit():
+            stock = int(amount)
+
+    size = ""
+    if block is not None:
+        block_text = " ".join(block.stripped_strings)
+        match = re.match(r"^(.{1,32}?)\\s+\\d+[,.]\\d{2}\\s*(?:€|EUR)", block_text, re.I)
+        if match:
+            size = _short_spec(match.group(1), ["price", "quantity", "availability", "discount", "shipping"])
+    return variant_id, stock, size
+
+
 def _breadcrumb_category(soup):
     for script in soup.find_all("script", {"type": "application/ld+json"}):
         raw = script.string or script.get_text()
@@ -156,7 +190,7 @@ def parse_product(html, url, default_vat=0.23):
         if name.startswith("product["):
             key = name.split("[",1)[1].split("]",1)[0]
             variants.append((key, inp.get("value")))
-    variant_key = variants[0][0] if variants else (product_id + "1" if product_id else "")
+    variant_key = active_variant_id or (variants[0][0] if variants else (product_id + "1" if product_id else ""))
 
     category = _breadcrumb_category(soup)
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
