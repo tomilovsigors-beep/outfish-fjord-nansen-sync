@@ -160,18 +160,28 @@ def parse_product(html, url, default_vat=0.23):
         producer_code = mcode.group(1)
     ean = producer_code if re.fullmatch(r"\d{8}|\d{12}|\d{13}|\d{14}", producer_code or "") else ""
 
-    size = _spec_value(text, "Size", reject={"price", "quantity", "price / item"})
-    color = _spec_value(text, "Color", reject={"palette", "palette,"}) or _spec_value(text, "Colour")
+    active_variant_id, active_stock, active_size = _active_variant(soup)
+    size = active_size or _short_spec(
+        _spec_value(text, "Size", reject={"price", "quantity", "price / item"}),
+        ["shape", "material", "dimensions", "fabric", "filling", "zipper", "price", "quantity", "availability", "discount", "circumference"],
+    )
+    color = _short_spec(
+        _spec_value(text, "Color", reject={"palette", "palette,"}) or _spec_value(text, "Colour"),
+        ["fabric", "material", "price", "quantity", "availability"],
+    )
     weight = _num(_spec_value(text, "Weight [g]"))
     pack_size = _spec_value(text, "Pack size")
     fill_weight = _num(_spec_value(text, "Fill weight [g]"))
 
-    stock = None
-    ms = re.search(r"\(\s*(\d+)\s+items? in stock\s*\)", text, re.I)
-    if ms:
-        stock = int(ms.group(1))
-    elif "Notify about availability" in text:
-        stock = 0
+    stock = active_stock
+    if stock is None:
+        active_block = soup.select_one(".projector_versions__block.--active")
+        active_text = " ".join(active_block.stripped_strings) if active_block else ""
+        ms = re.search(r"\(\s*(\d+)\s+items? in stock\s*\)", active_text, re.I)
+        if ms:
+            stock = int(ms.group(1))
+        elif active_block and active_block.select_one(".projector_versions__tell_availability"):
+            stock = 0
 
     sale_net, list_net, msrp_gross, availability = _offer_prices(product)
 
