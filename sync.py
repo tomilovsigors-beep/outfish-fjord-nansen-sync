@@ -57,6 +57,42 @@ def main() -> int:
     rows = result["rows"]
     write_jsonl(os.getenv("OUTPUT_JSONL_PATH", "").strip(), rows)
 
+    audit = {
+        "stock_positive": 0,
+        "stock_zero": 0,
+        "stock_missing": 0,
+        "variant_id_missing": 0,
+        "sku_missing": 0,
+        "ean_missing": 0,
+        "size_present": 0,
+        "color_present": 0,
+        "availability_conflicts": 0,
+    }
+    for row in rows:
+        stock = row.get("supplier_stock")
+        if stock is None:
+            audit["stock_missing"] += 1
+        elif stock > 0:
+            audit["stock_positive"] += 1
+        else:
+            audit["stock_zero"] += 1
+        if not row.get("source_variant_id"):
+            audit["variant_id_missing"] += 1
+        if not row.get("supplier_sku"):
+            audit["sku_missing"] += 1
+        if not row.get("ean_gtin"):
+            audit["ean_missing"] += 1
+        if row.get("size_original"):
+            audit["size_present"] += 1
+        if row.get("color_original"):
+            audit["color_present"] += 1
+        try:
+            attrs = json.loads(row.get("attributes_json") or "{}")
+        except Exception:
+            attrs = {}
+        if attrs.get("availability_conflict"):
+            audit["availability_conflicts"] += 1
+
     emit("CATALOG_SUMMARY", {
         "products_discovered": result["product_count"],
         "rows_parsed": len(rows),
@@ -64,7 +100,7 @@ def main() -> int:
         "errors": len(result["errors"]),
         "stopped_early": result.get("stopped_early", False),
         "processed_count": result.get("processed_count"),
-        "sample": rows[:2],
+        "audit": audit,
     })
 
     if result["errors"]:
