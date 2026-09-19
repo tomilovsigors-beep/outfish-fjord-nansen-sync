@@ -24,6 +24,12 @@ def open_sheet(sheet_id: str, service_account_json: str):
 
 
 def upsert_fn_raw(sheet_id: str, service_account_json: str, rows: list[dict]) -> dict:
+    keys = [str(row.get("source_variant_id") or "").strip() for row in rows]
+    if any(not key for key in keys):
+        raise RuntimeError("FN_RAW write blocked: empty source_variant_id")
+    if len(set(keys)) != len(keys):
+        raise RuntimeError("FN_RAW write blocked: duplicate source_variant_id in input")
+
     sh = open_sheet(sheet_id, service_account_json)
     ws = sh.worksheet("FN_RAW")
 
