@@ -25,3 +25,19 @@ Supplier synchronization for existing products may only update fields explicitly
 New products without shopify_product_id may receive generated EN/LV/RU content and planned category/collection assignments before being created as DRAFT.
 
 Manual content always wins.
+
+
+## Manual/existing product protection
+
+Products that already existed in Shopify before Fjord sync adoption, or were created/maintained manually, are excluded from mass content and price updates.
+
+For those protected existing products:
+- automatic supplier sync may update inventory/availability only;
+- title, descriptions, SEO, handle, product type, collections, tags, images, translations, publication status, price, and compare-at price remain untouched;
+- content generation jobs must skip them entirely.
+
+For products newly created by the Fjord pipeline:
+- create as DRAFT only;
+- after creation, inventory/availability may sync automatically;
+- future content changes require an explicit approved content workflow, never a blanket overwrite;
+- price may only follow the dedicated new-product pricing rule unless later changed manually, after which the manual value wins.
