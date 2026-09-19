@@ -78,3 +78,22 @@ Nothing outside HTML.
 When accuracy conflicts with completeness, choose accuracy.
 When natural language conflicts with rigid keyword placement, choose natural language.
 If the source does not support a statement, omit it.
+
+
+## Multilingual editorial rule
+
+The store uses separate English, Latvian, and Russian product pages.
+
+Create each language version directly from the same verified source facts. Do not create Latvian or Russian by literal, sentence-by-sentence translation of the English copy.
+
+For each locale:
+- write as a native e-commerce editor would naturally write in that language;
+- preserve all factual meaning, model names, measurements, ratings, technologies, and source limitations;
+- adapt syntax, terminology, headings, keyword placement, and sentence structure naturally for the target language;
+- avoid calques and awkward word-for-word constructions;
+- do not add facts to make a translation sound fuller;
+- keep product-category terminology consistent with the terminology already used in the corresponding Outfish locale;
+- SEO wording may differ between locales when a more natural search phrase exists, but factual scope must remain identical;
+- do not translate brand names, model names, SKU, technology names, standardized material names, or units unless the established localized form is explicitly appropriate.
+
+English, Latvian, and Russian are three independently edited versions of the same verified product data, not a translation chain.
