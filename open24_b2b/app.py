@@ -7,6 +7,8 @@ from collections import deque
 from urllib.parse import urljoin, urlparse
 
 import requests
+import pandas as pd
+from io import BytesIO
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify
 
@@ -151,6 +153,30 @@ def link_priority(href, text):
 
 
 
+
+def export_keen_stock(session):
+    url = urljoin(BASE_URL, "catalog/keen/?download_brand_xls=12")
+    try:
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
+        print("OPEN24_XLS_META " + json.dumps({
+            "url": r.url,
+            "content_type": r.headers.get("content-type",""),
+            "bytes": len(r.content),
+        }, ensure_ascii=False), flush=True)
+        bio = BytesIO(r.content)
+        sheets = pd.read_excel(bio, sheet_name=None, header=None)
+        for sname, df in sheets.items():
+            df = df.fillna("")
+            print("OPEN24_XLS_SHEET " + json.dumps({"sheet": str(sname), "rows": len(df), "cols": len(df.columns)}, ensure_ascii=False), flush=True)
+            for i, row in df.iterrows():
+                vals = [clean_text(str(v)) for v in row.tolist()]
+                if any(vals):
+                    print("OPEN24_XLS_ROW " + json.dumps({"sheet": str(sname), "row": int(i), "cells": vals}, ensure_ascii=False), flush=True)
+    except Exception as e:
+        print("OPEN24_XLS_ERROR " + json.dumps({"error": str(e)}, ensure_ascii=False), flush=True)
+
+
 def diagnose_keen(session):
     url = urljoin(BASE_URL, "catalog/keen/")
     try:
@@ -246,6 +272,7 @@ def run_sync():
         landing, _ = login(session)
         if QUERY.casefold() == "keen":
             diagnose_keen(session)
+            export_keen_stock(session)
         products, pages = crawl(session, landing)
         filtered = [p for p in products if matches_query(p, QUERY)]
         filtered = filtered[:MAX_RESULTS]
