@@ -7,8 +7,9 @@ from collections import deque
 from urllib.parse import urljoin, urlparse
 
 import requests
-import pandas as pd
 from io import BytesIO
+import xlrd
+from openpyxl import load_workbook
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify
 
@@ -159,20 +160,33 @@ def export_keen_stock(session):
     try:
         r = session.get(url, timeout=TIMEOUT)
         r.raise_for_status()
+        ctype = r.headers.get("content-type","")
         print("OPEN24_XLS_META " + json.dumps({
             "url": r.url,
-            "content_type": r.headers.get("content-type",""),
+            "content_type": ctype,
             "bytes": len(r.content),
+            "head_hex": r.content[:8].hex(),
         }, ensure_ascii=False), flush=True)
-        bio = BytesIO(r.content)
-        sheets = pd.read_excel(bio, sheet_name=None, header=None)
-        for sname, df in sheets.items():
-            df = df.fillna("")
-            print("OPEN24_XLS_SHEET " + json.dumps({"sheet": str(sname), "rows": len(df), "cols": len(df.columns)}, ensure_ascii=False), flush=True)
-            for i, row in df.iterrows():
-                vals = [clean_text(str(v)) for v in row.tolist()]
-                if any(vals):
-                    print("OPEN24_XLS_ROW " + json.dumps({"sheet": str(sname), "row": int(i), "cells": vals}, ensure_ascii=False), flush=True)
+
+        rows = []
+        data = r.content
+        if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+            wb = xlrd.open_workbook(file_contents=data)
+            for sname in wb.sheet_names():
+                sh = wb.sheet_by_name(sname)
+                print("OPEN24_XLS_SHEET " + json.dumps({"sheet": sname, "rows": sh.nrows, "cols": sh.ncols}, ensure_ascii=False), flush=True)
+                for i in range(sh.nrows):
+                    vals = [clean_text(str(sh.cell_value(i,j))) for j in range(sh.ncols)]
+                    if any(vals):
+                        print("OPEN24_XLS_ROW " + json.dumps({"sheet": sname, "row": i, "cells": vals}, ensure_ascii=False), flush=True)
+        else:
+            wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
+            for ws in wb.worksheets:
+                print("OPEN24_XLS_SHEET " + json.dumps({"sheet": ws.title, "rows": ws.max_row, "cols": ws.max_column}, ensure_ascii=False), flush=True)
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    vals = [clean_text("" if v is None else str(v)) for v in row]
+                    if any(vals):
+                        print("OPEN24_XLS_ROW " + json.dumps({"sheet": ws.title, "row": i, "cells": vals}, ensure_ascii=False), flush=True)
     except Exception as e:
         print("OPEN24_XLS_ERROR " + json.dumps({"error": str(e)}, ensure_ascii=False), flush=True)
 
