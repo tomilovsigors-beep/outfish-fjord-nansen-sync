@@ -14,9 +14,6 @@ def clean(value):
 
 def main():
     cfg = settings()
-    if not cfg["b2b_credentials_ready"]:
-        raise RuntimeError("B2B credentials missing")
-
     client = FjordNansenClient(cfg["base_url"], cfg["login"], cfg["password"])
     response, auth = client._authenticate()
     if response is None or not auth.get("authenticated"):
@@ -27,38 +24,29 @@ def main():
     soup = BeautifulSoup(r.text, "html.parser")
 
     rows = []
-    for idx, qty in enumerate(soup.select(".projector_versions__quantity[data-amount]")):
-        name = qty.get("name") or ""
-        m = re.search(r"set_quantity\[(\d+)\]", name)
+    for idx, block in enumerate(soup.select(".projector_versions__size")):
+        text = clean(" ".join(block.stripped_strings))
+        qty = block.select_one(".projector_versions__quantity[data-amount]")
+        name = qty.get("name") if qty else ""
+        m = re.search(r"set_quantity\[(\d+)\]", name or "")
         variant_id = m.group(1) if m else ""
-        amount_raw = clean(qty.get("data-amount"))
+        amount_raw = clean(qty.get("data-amount")) if qty else ""
         amount = int(amount_raw) if amount_raw.isdigit() else None
-
-        parent = qty
-        chain = []
-        for depth in range(5):
-            if parent is None:
-                break
-            text = clean(" ".join(parent.stripped_strings))
-            attrs = {k:v for k,v in (parent.attrs or {}).items() if k in {"class","data-size","data-product-id","data-product_size","data-amount","id"}}
-            chain.append({"depth":depth,"tag":parent.name,"attrs":attrs,"text":text[:320]})
-            parent = parent.parent
-
         rows.append({
             "index": idx,
+            "classes": block.get("class"),
+            "data_size": block.get("data-size"),
             "variant_id": variant_id,
             "quantity": amount,
-            "quantity_raw": amount_raw,
-            "name": name,
-            "value": qty.get("value"),
-            "classes": qty.get("class"),
-            "chain": chain,
+            "has_qty_input": qty is not None,
+            "has_tell_availability": block.select_one(".projector_versions__tell_availability") is not None,
+            "text": text[:420],
         })
 
-    print("APPAREL_QTYS=" + json.dumps({
+    print("APPAREL_SIZES=" + json.dumps({
         "product_url": r.url,
         "http_status": r.status_code,
-        "quantity_nodes": len(rows),
+        "size_blocks": len(rows),
         "rows": rows,
     }, ensure_ascii=False), flush=True)
 
