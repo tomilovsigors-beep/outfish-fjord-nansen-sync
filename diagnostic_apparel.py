@@ -27,40 +27,38 @@ def main():
     soup = BeautifulSoup(r.text, "html.parser")
 
     rows = []
-    blocks = soup.select(".projector_versions__block")
-    for idx, block in enumerate(blocks):
-        qty = block.select_one(".projector_versions__quantity[data-amount]")
-        if qty is None:
-            continue
-
+    for idx, qty in enumerate(soup.select(".projector_versions__quantity[data-amount]")):
         name = qty.get("name") or ""
         m = re.search(r"set_quantity\[(\d+)\]", name)
         variant_id = m.group(1) if m else ""
         amount_raw = clean(qty.get("data-amount"))
         amount = int(amount_raw) if amount_raw.isdigit() else None
 
-        attrs = {}
-        for tag in block.find_all(True):
-            for k, v in (tag.attrs or {}).items():
-                ks = str(k).lower()
-                if any(x in ks for x in ["size", "variant", "product", "stock", "amount", "quantity"]):
-                    attrs[k] = v
+        parent = qty
+        chain = []
+        for depth in range(5):
+            if parent is None:
+                break
+            text = clean(" ".join(parent.stripped_strings))
+            attrs = {k:v for k,v in (parent.attrs or {}).items() if k in {"class","data-size","data-product-id","data-product_size","data-amount","id"}}
+            chain.append({"depth":depth,"tag":parent.name,"attrs":attrs,"text":text[:320]})
+            parent = parent.parent
 
-        text = clean(" ".join(block.stripped_strings))
         rows.append({
             "index": idx,
-            "active": "--active" in (block.get("class") or []),
             "variant_id": variant_id,
             "quantity": amount,
             "quantity_raw": amount_raw,
-            "text": text[:500],
-            "attrs": attrs,
+            "name": name,
+            "value": qty.get("value"),
+            "classes": qty.get("class"),
+            "chain": chain,
         })
 
-    print("APPAREL_CONTROL=" + json.dumps({
+    print("APPAREL_QTYS=" + json.dumps({
         "product_url": r.url,
         "http_status": r.status_code,
-        "variant_blocks": len(blocks),
+        "quantity_nodes": len(rows),
         "rows": rows,
     }, ensure_ascii=False), flush=True)
 
