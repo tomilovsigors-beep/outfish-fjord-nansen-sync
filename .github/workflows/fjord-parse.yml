@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   parse:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fjord-control]') || contains(github.event.head_commit.message, '[fjord-fnraw-write]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fjord-control]') || contains(github.event.head_commit.message, '[fjord-fnraw-write]') || contains(github.event.head_commit.message, '[fjord-apparel-diag]')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -36,6 +36,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Parse Fjord catalogue
-        run: python sync.py
+      - name: Inspect control apparel variant stock
+        if: contains(github.event.head_commit.message, '[fjord-apparel-diag]')
+        run: python diagnostic_apparel.py
 
+      - name: Parse Fjord catalogue
+        if: ${{ !contains(github.event.head_commit.message, '[fjord-apparel-diag]') }}
+        run: python sync.py
