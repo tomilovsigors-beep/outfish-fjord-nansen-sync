@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import threading
 from collections import deque
 from urllib.parse import urljoin, urlparse
 
@@ -234,7 +235,11 @@ def run_sync():
         print("OPEN24_ERROR " + json.dumps({"error": str(e)}, ensure_ascii=False), flush=True)
 
 
-run_sync()
+def _background_start():
+    STATE.update(status="running", error=None)
+    run_sync()
+
+threading.Thread(target=_background_start, daemon=True).start()
 
 
 @app.get("/health")
@@ -251,7 +256,7 @@ def health():
 
 @app.get("/")
 def root():
-    return jsonify({"service": "outfish-open24-b2b", "status": STATE["status"]})
+    return jsonify({"service": "outfish-open24-b2b", "status": STATE["status"], "query": STATE["query"], "results": len(STATE["results"])})
 
 
 if __name__ == "__main__":
