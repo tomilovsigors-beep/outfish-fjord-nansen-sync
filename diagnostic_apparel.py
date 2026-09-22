@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss9752","https://b2b.fjordnansen.com/product-eng-45140-VIK-LEGGINGS-UNISEX-gaiters.html"],["mw2218","https://b2b.fjordnansen.com/product-eng-42999-VIK-LEGGINGS-UNISEX-gaiters.html"]]
+TARGETS=[["ss4422","https://b2b.fjordnansen.com/product-eng-31156-HASVIK-WIND-MEN-sweatshirt.html"],["ss4068","https://b2b.fjordnansen.com/product-eng-29200-Softshell-GOLFSTROM-NG-MEN.html"],["ss4066","https://b2b.fjordnansen.com/product-eng-29198-STORM-X-BLOCK-windproof-jacket.html"],["ss4065","https://b2b.fjordnansen.com/product-eng-29197-STORM-X-BLOCK-windproof-jacket.html"],["kj0565","https://b2b.fjordnansen.com/product-eng-1888-ROALD-fleece-jacket.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def parse_sizes(html):
  s=BeautifulSoup(html,"html.parser"); out=[]
@@ -25,5 +25,5 @@ def main():
   r=c.session.get(url,timeout=30); r.raise_for_status()
   sizes=parse_sizes(r.text); res.append({"sku":sku,"url":r.url,"sizes":sizes})
   print("FOUND "+sku+" "+json.dumps(sizes,ensure_ascii=False),flush=True); time.sleep(1.5)
- print("WOMENS_PANTS_MORE="+json.dumps(res,ensure_ascii=False),flush=True)
+ print("MENS_JACKETS_ALL="+json.dumps(res,ensure_ascii=False),flush=True)
 if __name__=="__main__": main()
