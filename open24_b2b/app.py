@@ -150,6 +150,33 @@ def link_priority(href, text):
     return any(k in s for k in hot)
 
 
+
+def diagnose_keen(session):
+    url = urljoin(BASE_URL, "catalog/keen/")
+    try:
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "lxml")
+        print("OPEN24_DIAG_PAGE " + json.dumps({
+            "url": r.url,
+            "title": clean_text(soup.title.get_text(" ", strip=True) if soup.title else ""),
+        }, ensure_ascii=False), flush=True)
+
+        for i, a in enumerate(soup.find_all("a", href=True)[:300]):
+            txt = clean_text(a.get_text(" ", strip=True))
+            href = urljoin(r.url, a.get("href"))
+            if txt:
+                print("OPEN24_DIAG_LINK " + json.dumps({"i": i, "text": txt[:300], "href": href}, ensure_ascii=False), flush=True)
+
+        for ti, table in enumerate(soup.find_all("table")):
+            for ri, tr in enumerate(table.find_all("tr")):
+                cells = [clean_text(x.get_text(" ", strip=True)) for x in tr.find_all(["th","td"])]
+                if any(cells):
+                    print("OPEN24_DIAG_ROW " + json.dumps({"table": ti, "row": ri, "cells": cells}, ensure_ascii=False), flush=True)
+    except Exception as e:
+        print("OPEN24_DIAG_ERROR " + json.dumps({"error": str(e)}, ensure_ascii=False), flush=True)
+
+
 def crawl(session, start_url):
     q = deque([start_url])
     visited = set()
@@ -217,6 +244,8 @@ def run_sync():
 
     try:
         landing, _ = login(session)
+        if QUERY.casefold() == "keen":
+            diagnose_keen(session)
         products, pages = crawl(session, landing)
         filtered = [p for p in products if matches_query(p, QUERY)]
         filtered = filtered[:MAX_RESULTS]
