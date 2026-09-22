@@ -191,6 +191,72 @@ def export_keen_stock(session):
         print("OPEN24_XLS_ERROR " + json.dumps({"error": str(e)}, ensure_ascii=False), flush=True)
 
 
+def diagnose_order(session, landing_url):
+    keywords = ["order", "orders", "cart", "basket", "checkout", "užsak", "uzsak", "krep", "pirk", "mano"]
+    seen = set()
+    queue = [landing_url, BASE_URL]
+    candidates = []
+    for seed in queue:
+        try:
+            r = session.get(seed, timeout=TIMEOUT)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "lxml")
+            print("OPEN24_ORDER_PAGE " + json.dumps({
+                "url": r.url,
+                "title": clean_text(soup.title.get_text(" ", strip=True) if soup.title else ""),
+                "text": clean_text(soup.get_text(" ", strip=True))[:2500],
+            }, ensure_ascii=False), flush=True)
+            for a in soup.find_all("a", href=True):
+                txt = clean_text(a.get_text(" ", strip=True))
+                href = urljoin(r.url, a.get("href"))
+                hay = (txt + " " + href).casefold()
+                if same_host(href) and any(k in hay for k in keywords):
+                    candidates.append((txt, href))
+        except Exception as e:
+            print("OPEN24_ORDER_SEED_ERROR " + json.dumps({"url": seed, "error": str(e)}, ensure_ascii=False), flush=True)
+
+    for txt, href in candidates:
+        if href in seen:
+            continue
+        seen.add(href)
+        try:
+            r = session.get(href, timeout=TIMEOUT)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "lxml")
+            print("OPEN24_ORDER_CANDIDATE " + json.dumps({
+                "link_text": txt,
+                "url": r.url,
+                "title": clean_text(soup.title.get_text(" ", strip=True) if soup.title else ""),
+                "text": clean_text(soup.get_text(" ", strip=True))[:5000],
+            }, ensure_ascii=False), flush=True)
+            for ti, table in enumerate(soup.find_all("table")):
+                for ri, tr in enumerate(table.find_all("tr")):
+                    cells = [clean_text(x.get_text(" ", strip=True)) for x in tr.find_all(["th","td"])]
+                    if any(cells):
+                        print("OPEN24_ORDER_ROW " + json.dumps({
+                            "url": r.url, "table": ti, "row": ri, "cells": cells
+                        }, ensure_ascii=False), flush=True)
+            for fi, form in enumerate(soup.find_all("form")):
+                fields=[]
+                for inp in form.find_all(["input","select","textarea","button"]):
+                    fields.append({
+                        "tag": inp.name,
+                        "name": inp.get("name"),
+                        "type": inp.get("type"),
+                        "value": inp.get("value"),
+                        "text": clean_text(inp.get_text(" ", strip=True))[:200],
+                    })
+                print("OPEN24_ORDER_FORM " + json.dumps({
+                    "url": r.url,
+                    "index": fi,
+                    "action": urljoin(r.url, form.get("action") or r.url),
+                    "method": (form.get("method") or "get").lower(),
+                    "fields": fields[:80],
+                }, ensure_ascii=False), flush=True)
+        except Exception as e:
+            print("OPEN24_ORDER_CANDIDATE_ERROR " + json.dumps({"url": href, "error": str(e)}, ensure_ascii=False), flush=True)
+
+
 def diagnose_keen(session):
     url = urljoin(BASE_URL, "catalog/keen/")
     try:
@@ -287,6 +353,8 @@ def run_sync():
         if QUERY.casefold() == "keen":
             diagnose_keen(session)
             export_keen_stock(session)
+        if QUERY.casefold() == "__order__":
+            diagnose_order(session, landing)
         products, pages = crawl(session, landing)
         filtered = [p for p in products if matches_query(p, QUERY)]
         filtered = filtered[:MAX_RESULTS]
