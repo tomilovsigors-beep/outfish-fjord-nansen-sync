@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss12496","https://b2b.fjordnansen.com/product-eng-51007-BWAH-MEN-t-shirt.html"],["ss10317","https://b2b.fjordnansen.com/product-eng-46146-KJERAG-MEN-T-Shirt.html"],["ss9241","https://b2b.fjordnansen.com/product-eng-44375-BASIC-MEN-rocky-grey-t-shirt.html"],["ss9239","https://b2b.fjordnansen.com/product-eng-44373-SKOG-MEN-olive-t-shirt.html"],["ss9238","https://b2b.fjordnansen.com/product-eng-44372-NORTH-CAPE-MEN-navy-T-shirt.html"],["ss8042","https://b2b.fjordnansen.com/product-eng-41348-RIX-SPORTS-SLEEVELESS-MEN-T-Shirt.html"],["ss8041","https://b2b.fjordnansen.com/product-eng-41346-RIX-SPORTS-SLEEVELESS-MEN-T-Shirt.html"],["ss8015","https://b2b.fjordnansen.com/product-eng-41225-RIX-PRINT-T-shirt-Men.html"],["ss8014","https://b2b.fjordnansen.com/product-eng-41224-RIX-PRINT-T-SHIRT-MEN-T-Shirt.html"],["ss8013","https://b2b.fjordnansen.com/product-eng-41223-RIX-PRINT-T-SHIRT-MEN-T-Shirt.html"],["ss7901","https://b2b.fjordnansen.com/product-eng-40842-RIX-LONGSLEEVE-MEN-T-Shirt.html"],["ss7900","https://b2b.fjordnansen.com/product-eng-40841-RIX-LONGSLEEVE-MEN-T-Shirt.html"],["ss7899","https://b2b.fjordnansen.com/product-eng-40838-RIX-T-SHIRT-MEN-T-Shirt.html"],["ss7893","https://b2b.fjordnansen.com/product-eng-40758-RIX-T-SHIRT-MEN-T-Shirt.html"],["ss7892","https://b2b.fjordnansen.com/product-eng-40757-RIX-T-SHIRT-MEN-T-Shirt.html"],["ss7890","https://b2b.fjordnansen.com/product-eng-40747-RIX-T-SHIRT-MEN-T-Shirt.html"]]
+TARGETS=[["ss8700","https://b2b.fjordnansen.com/product-eng-42989-VIK-FULL-ZIP-MEN-Sweatshirt.html"],["ss8696","https://b2b.fjordnansen.com/product-eng-42982-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss8695","https://b2b.fjordnansen.com/product-eng-42981-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss8693","https://b2b.fjordnansen.com/product-eng-42976-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss4296","https://b2b.fjordnansen.com/product-eng-30355-HASVIK-WIND-MEN-sweatshirt.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def parse_sizes(html):
  s=BeautifulSoup(html,"html.parser"); out=[]
@@ -23,9 +23,8 @@ def main():
  res=[]
  for sku,url in TARGETS:
   r=c.session.get(url,timeout=30); r.raise_for_status()
-  sizes=parse_sizes(r.text); res.append({"sku":sku,"url":r.url,"sizes":sizes})
-  pos=sum(1 for x in sizes if isinstance(x.get("quantity"),int) and x["quantity"]>0)
-  print("FOUND "+sku+" positive="+str(pos)+" "+json.dumps(sizes,ensure_ascii=False),flush=True)
-  time.sleep(1.2)
- print("MENS_SHIRTS_ALL="+json.dumps(res,ensure_ascii=False),flush=True)
+  sizes=parse_sizes(r.text); pos=sum(1 for x in sizes if isinstance(x.get("quantity"),int) and x["quantity"]>0)
+  res.append({"sku":sku,"url":r.url,"sizes":sizes})
+  print("FOUND "+sku+" positive="+str(pos)+" "+json.dumps(sizes,ensure_ascii=False),flush=True); time.sleep(1.2)
+ print("MENS_SWEATS_ALL="+json.dumps(res,ensure_ascii=False),flush=True)
 if __name__=="__main__": main()
