@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss8700","https://b2b.fjordnansen.com/product-eng-42989-VIK-FULL-ZIP-MEN-Sweatshirt.html"],["ss8696","https://b2b.fjordnansen.com/product-eng-42982-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss8695","https://b2b.fjordnansen.com/product-eng-42981-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss8693","https://b2b.fjordnansen.com/product-eng-42976-VIK-1-4-ZIP-MEN-Sweatshirt.html"],["ss4296","https://b2b.fjordnansen.com/product-eng-30355-HASVIK-WIND-MEN-sweatshirt.html"]]
+TARGETS=[["ss9584","https://b2b.fjordnansen.com/product-eng-44886-AGIR-WATERPROOF-Gloves-2-0.html"],["ss3715","https://b2b.fjordnansen.com/product-eng-28553-WIND-SMART-Gloves.html"],["ss3437","https://b2b.fjordnansen.com/product-eng-27646-GRIP-SMART-Gloves.html"],["kj0529","https://b2b.fjordnansen.com/product-eng-4234-MICROPILE-Gloves.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def parse_sizes(html):
  s=BeautifulSoup(html,"html.parser"); out=[]
@@ -26,5 +26,5 @@ def main():
   sizes=parse_sizes(r.text); pos=sum(1 for x in sizes if isinstance(x.get("quantity"),int) and x["quantity"]>0)
   res.append({"sku":sku,"url":r.url,"sizes":sizes})
   print("FOUND "+sku+" positive="+str(pos)+" "+json.dumps(sizes,ensure_ascii=False),flush=True); time.sleep(1.2)
- print("MENS_SWEATS_ALL="+json.dumps(res,ensure_ascii=False),flush=True)
+ print("GLOVES_ALL="+json.dumps(res,ensure_ascii=False),flush=True)
 if __name__=="__main__": main()
