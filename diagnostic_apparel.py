@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss11432","https://b2b.fjordnansen.com/product-eng-48883-VEIG-II-3-kg-tent.html"],["ss11433","https://b2b.fjordnansen.com/product-eng-48884-VEIG-PRO-III-3-6-kg-tent.html"],["ss11434","https://b2b.fjordnansen.com/product-eng-48885-TORDIS-I-tent-2-0-2-1-kg.html"],["ss11435","https://b2b.fjordnansen.com/product-eng-48886-VINGER-II-tent-3-15-kg.html"],["ss10305","https://b2b.fjordnansen.com/product-eng-46117-Tent-KORSYKA-III-COMPACT-2-0-5-1-kg.html"],["31052","https://b2b.fjordnansen.com/product-eng-1562-Tent-SPLIT-VI-10-8-kg.html"],["ss8243","https://b2b.fjordnansen.com/product-eng-41826-FINMARK-MID-4-C-850g-sleeping-bag.html"],["ss9134","https://b2b.fjordnansen.com/product-eng-44141-KJOLEN-MID-LEFT-sleeping-bag-2-C-1300g.html"],["ss8235","https://b2b.fjordnansen.com/product-eng-41817-TROMS-XL-sleeping-bag-5-C-1514g.html"],["ss9485","https://b2b.fjordnansen.com/product-eng-44730-HADSEL-MID-RIGHT-sleeping-bag-8-C-1700g.html"]]
+TARGETS=[["MS18","https://b2b.fjordnansen.com/product-eng-44176-STAVANGER-XL-LEFT-sleeping-bag-7-C-2100g.html"],["ss6106","https://b2b.fjordnansen.com/product-eng-35895-PROFI-LINER-sheet.html"],["kj0359","https://b2b.fjordnansen.com/product-eng-4091-FROTA-towel-XL-290g-150-x-63cm.html"],["kj0358","https://b2b.fjordnansen.com/product-eng-9013-TRAMP-L-160g-120x60cm-towel.html"],["ss8923","https://b2b.fjordnansen.com/product-eng-43524-ADVENTURE-BACKPACK-23L.html"],["ss8925","https://b2b.fjordnansen.com/product-eng-43531-HIP-BAG-3L-Waterproof-Hip-Bag.html"],["ss8396","https://b2b.fjordnansen.com/product-eng-42191-NEW-STRIPE-SOCKS.html"],["ss10309","https://b2b.fjordnansen.com/product-eng-46127-TRIP-LONG-socks.html"],["ss1868","https://b2b.fjordnansen.com/product-eng-22837-TOMTE-20-backpack.html"],["ss1873","https://b2b.fjordnansen.com/product-eng-22842-BODO-40-backpack.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def main():
  cfg=settings(); c=FjordNansenClient(cfg["base_url"],cfg["login"],cfg["password"])
@@ -18,6 +18,6 @@ def main():
    vals=clean(" ".join(p.select_one(".dictionary__values").stripped_strings)) if p.select_one(".dictionary__values") else ""
    if name and vals and "Entity responsible" not in name:
     specs.append([name,vals])
-  print("FULLSRC2 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
+  print("FULLSRC3 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
   time.sleep(1)
 if __name__=="__main__": main()
