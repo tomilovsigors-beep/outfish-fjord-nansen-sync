@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["MS18","https://b2b.fjordnansen.com/product-eng-44176-STAVANGER-XL-LEFT-sleeping-bag-7-C-2100g.html"],["ss6106","https://b2b.fjordnansen.com/product-eng-35895-PROFI-LINER-sheet.html"],["kj0359","https://b2b.fjordnansen.com/product-eng-4091-FROTA-towel-XL-290g-150-x-63cm.html"],["kj0358","https://b2b.fjordnansen.com/product-eng-9013-TRAMP-L-160g-120x60cm-towel.html"],["ss8923","https://b2b.fjordnansen.com/product-eng-43524-ADVENTURE-BACKPACK-23L.html"],["ss8925","https://b2b.fjordnansen.com/product-eng-43531-HIP-BAG-3L-Waterproof-Hip-Bag.html"],["ss8396","https://b2b.fjordnansen.com/product-eng-42191-NEW-STRIPE-SOCKS.html"],["ss10309","https://b2b.fjordnansen.com/product-eng-46127-TRIP-LONG-socks.html"],["ss1868","https://b2b.fjordnansen.com/product-eng-22837-TOMTE-20-backpack.html"],["ss1873","https://b2b.fjordnansen.com/product-eng-22842-BODO-40-backpack.html"]]
+TARGETS=[["ss11473","https://b2b.fjordnansen.com/product-eng-48945-Tent-TROMVIK-II-2-0-2-15-kg.html"],["ss11474","https://b2b.fjordnansen.com/product-eng-48947-TORDIS-I-UL-tent-1-75-kg.html"],["ss10346","https://b2b.fjordnansen.com/product-eng-46162-NOKKEL-key-ring.html"],["ss11367","https://b2b.fjordnansen.com/product-eng-48736-BRANN-SPORK-Spoon-Fork.html"],["ss11498","https://b2b.fjordnansen.com/product-eng-48988-KALDI-BOTTLE.html"],["ss11499","https://b2b.fjordnansen.com/product-eng-48989-KALDI-BOTTLE.html"],["kj0529","https://b2b.fjordnansen.com/product-eng-4234-MICROPILE-Gloves.html"],["ss3437","https://b2b.fjordnansen.com/product-eng-27646-GRIP-SMART-Gloves.html"],["ss3944","https://b2b.fjordnansen.com/product-eng-28931-HEADGEAR-SHAPES-multifunctional-sling-8in1.html"],["ss8062","https://b2b.fjordnansen.com/product-eng-41387-HEADGEAR-AQUA-8in1-multifunctional-sling.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def main():
  cfg=settings(); c=FjordNansenClient(cfg["base_url"],cfg["login"],cfg["password"])
@@ -18,6 +18,6 @@ def main():
    vals=clean(" ".join(p.select_one(".dictionary__values").stripped_strings)) if p.select_one(".dictionary__values") else ""
    if name and vals and "Entity responsible" not in name:
     specs.append([name,vals])
-  print("FULLSRC3 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
+  print("FULLSRC4 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
   time.sleep(1)
 if __name__=="__main__": main()
