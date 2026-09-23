@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss8375","https://b2b.fjordnansen.com/product-eng-42145-NEW-HIKE-KEVLAR-SOCKS.html"],["ss10747/mw","https://b2b.fjordnansen.com/product-eng-46730-HYGGE-BEANIE-Cap.html"],["ss10750/mw","https://b2b.fjordnansen.com/product-eng-46733-HYGGE-BEANIE-Cap.html"],["ss10748/mw","https://b2b.fjordnansen.com/product-eng-46731-HYGGE-BEANIE-Cap.html"],["ss10749/mw","https://b2b.fjordnansen.com/product-eng-46732-HYGGE-BEANIE-Cap.html"],["ss10755/mw","https://b2b.fjordnansen.com/product-eng-46738-LIGHT-MERINOULL-BEANIE-Cap.html"],["ss9085","https://b2b.fjordnansen.com/product-eng-43872-NORDKAPP-300-MID-LEFT-down-sleeping-bag-1-C-650-g.html"],["ss9086","https://b2b.fjordnansen.com/product-eng-43873-NORDKAPP-300-XL-RIGHT-1-C-700-g-sleeping-bag.html"],["ss5613","https://b2b.fjordnansen.com/product-eng-35043-FALL-200-cap.html"],["ss9498","https://b2b.fjordnansen.com/product-eng-44781-SKI-KEVLAR-Socks.html"]]
+TARGETS=[["ss10374","https://b2b.fjordnansen.com/product-eng-46234-HENDIG-SILVER-Carabiner.html"],["ss8060","https://b2b.fjordnansen.com/product-eng-41385-HEADGEAR-KALEIDOSCOPE-multifunctional-sling-8in1.html"],["ss8061","https://b2b.fjordnansen.com/product-eng-41386-HEADGEAR-SPLASH-multifunctional-sling-8in1.html"],["ss10320","https://b2b.fjordnansen.com/product-eng-46153-ARLA-Passport-Box.html"],["ss10353","https://b2b.fjordnansen.com/product-eng-46175-STORD-2-sachet.html"],["ss10935","https://b2b.fjordnansen.com/product-eng-47445-LIGHT-MERINOULL-BEANIE-Cap.html"],["ss8371","https://b2b.fjordnansen.com/product-eng-42140-REVLE-ANTI-MOSQUITO-anti-tick-socks.html"],["ss9191g","https://b2b.fjordnansen.com/product-eng-49003-TRUCKER-CAP-BWAH-olive-black-baseball-cap.html"],["ss6060","https://b2b.fjordnansen.com/product-eng-35831-TROMVIK-I-NG-1-5-kg-tent.html"],["ss8368","https://b2b.fjordnansen.com/product-eng-42135-NEW-HIKE-LOW-KEVLAR-SOCKS.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def main():
  cfg=settings(); c=FjordNansenClient(cfg["base_url"],cfg["login"],cfg["password"])
@@ -18,6 +18,6 @@ def main():
    vals=clean(" ".join(p.select_one(".dictionary__values").stripped_strings)) if p.select_one(".dictionary__values") else ""
    if name and vals and "Entity responsible" not in name:
     specs.append([name,vals])
-  print("FULLSRC5 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
+  print("FULLSRC6 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
   time.sleep(1)
 if __name__=="__main__": main()
