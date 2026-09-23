@@ -2,7 +2,7 @@ import json,re,time
 from bs4 import BeautifulSoup
 from config import settings
 from supplier_client import FjordNansenClient
-TARGETS=[["ss8388","https://b2b.fjordnansen.com/product-eng-42182-NIS-SNEAKER-KEVLAR-SOCKS.html"],["ss10314","https://b2b.fjordnansen.com/product-eng-46141-NIS-SNEAKER-KEVLAR-Socks.html"],["ss1871","https://b2b.fjordnansen.com/product-eng-22840-BODO-32-backpack.html"],["ss1870","https://b2b.fjordnansen.com/product-eng-22839-BODO-32-backpack.html"],["ss5826","https://b2b.fjordnansen.com/product-eng-35617-TOLLA-ALU-menagerie-900-ml.html"],["ss11296","https://b2b.fjordnansen.com/product-eng-48439-DRY-BAG-30L-waterproof-bag.html"],["ss11520","https://b2b.fjordnansen.com/product-eng-49044-NIVA-poles-2-0.html"],["ss12502","https://b2b.fjordnansen.com/product-eng-51013-MJUKA-THERMAL-LINER-sleeping-bag-insert.html"],["ss10972","https://b2b.fjordnansen.com/product-eng-47523-NORDKAPP-400-XL-RIGHT-3-C-sleeping-bag.html"]]
+TARGETS=[["ss9490","https://b2b.fjordnansen.com/product-eng-44738--KJOLEN-XL-RIGHT-2-C-1400g-sleeping-bag.html"],["44700","https://b2b.fjordnansen.com/product-eng-2784-MAP-CASE-REGULAR-Mapbook.html"],["ss1956","https://b2b.fjordnansen.com/product-eng-22936-BACKCOUNTRY-poles.html"],["ss9217","https://b2b.fjordnansen.com/product-eng-44313-LETT-CAP.html"],["ss9196","https://b2b.fjordnansen.com/product-eng-44241-LETT-CAP.html"],["ss12504","https://b2b.fjordnansen.com/product-eng-51016-Underquilt-synthetic-NEVIS-LIGHT.html"],["ss12505","https://b2b.fjordnansen.com/product-eng-51022-Domyslna-nazwa.html"],["ss12635","https://b2b.fjordnansen.com/product-eng-51269-DRY-BAG-10L-waterproof-bag.html"],["ss5868","https://b2b.fjordnansen.com/product-eng-35700-HEADGEAR-WAVE-8in1-multifunctional-sling.html"]]
 def clean(v): return re.sub(r"\s+"," ",str(v or "")).strip()
 def main():
  cfg=settings(); c=FjordNansenClient(cfg["base_url"],cfg["login"],cfg["password"])
@@ -18,6 +18,6 @@ def main():
    vals=clean(" ".join(p.select_one(".dictionary__values").stripped_strings)) if p.select_one(".dictionary__values") else ""
    if name and vals and "Entity responsible" not in name:
     specs.append([name,vals])
-  print("FULLSRC7 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
+  print("FULLSRC8 "+sku+" "+json.dumps({"url":r.url,"short":short,"long":long,"specs":specs},ensure_ascii=False),flush=True)
   time.sleep(1)
 if __name__=="__main__": main()
